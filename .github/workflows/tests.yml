@@ -11,9 +11,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -r requirements-serving-py311.txt pytest
+      - run: python -m pip install -r requirements-dev.txt
       - run: python -m compileall backend tests test_project.py
       - run: pytest
       - run: ./scripts/run_local_tests.sh
