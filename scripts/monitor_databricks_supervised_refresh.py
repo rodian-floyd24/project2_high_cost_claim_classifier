@@ -8,28 +8,47 @@ import urllib.request
 from pathlib import Path
 
 
-HOST = "https://dbc-6fa9579a-0244.cloud.databricks.com"
-WAREHOUSE_ID = "4b2e5860749a182a"
-WORKSPACE_BASE = "/Users/r.odian-floyd24@ncf.edu/Project2HighCostClaimClassifier"
 POLL_SECONDS = 60
 
-RUN_IDS = {
-    "logreg": "6442333544498",
-    "random_forest": "849288346683555",
-    "gradient_boosting": "1020501581271782",
-}
-
-OUTPUT_DIR = Path(__file__).resolve().parent / "report_artifacts" / "databricks_refresh"
+ROOT = Path(__file__).resolve().parents[1]
+OUTPUT_DIR = ROOT / "report_artifacts" / "databricks_refresh"
 STATUS_PATH = OUTPUT_DIR / "status.json"
 COMPARISON_PATH = OUTPUT_DIR / "model_comparison_summary.json"
 TEST_CURVE_PATH = OUTPUT_DIR / "test_topk_curve_points.csv"
 
 
-def load_access_token() -> str:
-    value = os.environ.get("DATABRICKS_TOKEN", "").strip()
+def required_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
     if not value:
-        raise RuntimeError("Set DATABRICKS_TOKEN before running this refresh monitor.")
+        raise RuntimeError(f"Set {name} before running this Databricks refresh monitor.")
     return value
+
+
+def databricks_host() -> str:
+    return required_env("DATABRICKS_HOST").rstrip("/")
+
+
+def warehouse_id() -> str:
+    return required_env("DATABRICKS_WAREHOUSE_ID")
+
+
+def workspace_base() -> str:
+    return required_env("DATABRICKS_WORKSPACE_BASE").rstrip("/")
+
+
+def model_run_ids() -> dict[str, str]:
+    raw = required_env("DATABRICKS_MODEL_RUN_IDS")
+    try:
+        values = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("DATABRICKS_MODEL_RUN_IDS must be a JSON object.") from exc
+    if not isinstance(values, dict) or not values:
+        raise RuntimeError("DATABRICKS_MODEL_RUN_IDS must map model names to run IDs.")
+    return {str(key): str(value) for key, value in values.items()}
+
+
+def load_access_token() -> str:
+    return required_env("DATABRICKS_TOKEN")
 
 
 def api_headers() -> dict[str, str]:
@@ -42,7 +61,7 @@ def api_headers() -> dict[str, str]:
 
 def api_json(method: str, path: str, payload: dict | None = None, timeout: int = 120) -> dict:
     data = None if payload is None else json.dumps(payload).encode()
-    req = urllib.request.Request(HOST + path, data=data, headers=api_headers(), method=method)
+    req = urllib.request.Request(databricks_host() + path, data=data, headers=api_headers(), method=method)
     with urllib.request.urlopen(req, timeout=timeout) as response:
         body = response.read().decode()
     return json.loads(body) if body else {}
@@ -58,7 +77,7 @@ def submit_notebook_run(run_name: str, notebook_name: str, timeout_seconds: int)
         "tasks": [
             {
                 "task_key": notebook_name,
-                "notebook_task": {"notebook_path": f"{WORKSPACE_BASE}/{notebook_name}"},
+                "notebook_task": {"notebook_path": f"{workspace_base()}/{notebook_name}"},
                 "timeout_seconds": timeout_seconds,
             }
         ],
@@ -82,7 +101,7 @@ def sql_statement(statement: str) -> dict:
         "/api/2.0/sql/statements",
         {
             "statement": statement,
-            "warehouse_id": WAREHOUSE_ID,
+            "warehouse_id": warehouse_id(),
             "disposition": "INLINE",
         },
     )
@@ -144,7 +163,7 @@ def main() -> None:
     status = {"model_runs": {}, "comparison_run": None, "topk_run": None}
     write_status(status)
 
-    for name, run_id in RUN_IDS.items():
+    for name, run_id in model_run_ids().items():
         data = wait_for_terminal_state(run_id)
         status["model_runs"][name] = {
             "run_id": run_id,

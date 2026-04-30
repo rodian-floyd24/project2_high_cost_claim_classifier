@@ -46,8 +46,10 @@ TOPK_CURVE_TABLE = "model_topk_curve_points"
 PREDICTION_SCORE_TABLE = "model_prediction_scores"
 MODEL_NAME = "random_forest"
 RANDOM_SEED = 42
-MLFLOW_EXPERIMENT_PATH = "/Users/r.odian-floyd24@ncf.edu/Project2HighCostClaimClassifier_Experiment"
-MLFLOW_EXPERIMENT_PATH = os.environ.get("MLFLOW_EXPERIMENT_PATH", MLFLOW_EXPERIMENT_PATH)
+MLFLOW_EXPERIMENT_PATH = os.environ.get(
+    "MLFLOW_EXPERIMENT_PATH",
+    "/Shared/Project2HighCostClaimClassifier_Experiment",
+)
 # Final locked comparison profile. Keep the grid small enough for Databricks
 # job-task timeouts; this is a comparison baseline, not an exhaustive RF search.
 CV_FOLDS = int(os.environ.get("RF_CV_FOLDS", "3"))

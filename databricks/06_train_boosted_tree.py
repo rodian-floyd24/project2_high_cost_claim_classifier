@@ -37,7 +37,10 @@ TOPK_CURVE_TABLE = "model_topk_curve_points"
 PREDICTION_SCORE_TABLE = "model_prediction_scores"
 MODEL_NAME = "gradient_boosting"
 RANDOM_SEED = 42
-MLFLOW_EXPERIMENT_PATH = "/Users/r.odian-floyd24@ncf.edu/Project2HighCostClaimClassifier_Experiment"
+MLFLOW_EXPERIMENT_PATH = os.environ.get(
+    "MLFLOW_EXPERIMENT_PATH",
+    "/Shared/Project2HighCostClaimClassifier_Experiment",
+)
 BOOSTING_N_ESTIMATORS = 1000
 BOOSTING_LEARNING_RATE = 0.01
 TEXTBOOK_DECISION_THRESHOLD = 0.20

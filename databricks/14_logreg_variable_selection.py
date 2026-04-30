@@ -58,7 +58,7 @@ VALIDATION_BUCKET_CUTOFF = 15
 MAX_DRIVER_ROWS = int(os.environ.get("MAX_DRIVER_ROWS", "1000000"))
 MLFLOW_EXPERIMENT_PATH = os.environ.get(
     "MLFLOW_EXPERIMENT_PATH",
-    "/Users/r.odian-floyd24@ncf.edu/Project2HighCostClaimClassifier_Experiment",
+    "/Shared/Project2HighCostClaimClassifier_Experiment",
 )
 
 

@@ -10,3 +10,4 @@ mlflow.db
 backend/.venv_api/
 *token*.txt
 object_storage/
+report_artifacts/databricks_refresh/

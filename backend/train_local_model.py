@@ -18,8 +18,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 
-HOST = "https://dbc-6fa9579a-0244.cloud.databricks.com"
-WAREHOUSE_ID = "4b2e5860749a182a"
 RANDOM_SEED = 42
 TARGET_QUANTILE = 0.9
 SPLIT_STRATEGY = "temporal_target_year_holdout"
@@ -165,10 +163,23 @@ CATEGORICAL_FEATURES = [
 ]
 
 
+def required_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Set {name} before running local model training.")
+    return value
+
+
+def databricks_host() -> str:
+    return required_env("DATABRICKS_HOST").rstrip("/")
+
+
+def warehouse_id() -> str:
+    return required_env("DATABRICKS_WAREHOUSE_ID")
+
+
 def auth_headers() -> dict[str, str]:
-    token = os.environ.get("DATABRICKS_TOKEN", "").strip()
-    if not token:
-        raise RuntimeError("Set DATABRICKS_TOKEN before running local model training.")
+    token = required_env("DATABRICKS_TOKEN")
     auth_scheme = "Be" + "arer"
     return {
         "Authorization": f"{auth_scheme} {token}",
@@ -179,11 +190,11 @@ def auth_headers() -> dict[str, str]:
 def sql_statement(statement: str) -> dict:
     payload = {
         "statement": statement,
-        "warehouse_id": WAREHOUSE_ID,
+        "warehouse_id": warehouse_id(),
         "disposition": "EXTERNAL_LINKS",
     }
     req = urllib.request.Request(
-        HOST + "/api/2.0/sql/statements",
+        databricks_host() + "/api/2.0/sql/statements",
         data=json.dumps(payload).encode(),
         headers=auth_headers(),
         method="POST",
@@ -195,7 +206,7 @@ def sql_statement(statement: str) -> dict:
 def wait_for_statement(statement_id: str) -> dict:
     while True:
         req = urllib.request.Request(
-            HOST + f"/api/2.0/sql/statements/{statement_id}",
+            databricks_host() + f"/api/2.0/sql/statements/{statement_id}",
             headers=auth_headers(),
             method="GET",
         )
@@ -228,7 +239,7 @@ def download_gold_table() -> pd.DataFrame:
             rows = fetch_json_array(first_link)
         else:
             req = urllib.request.Request(
-                HOST + f"/api/2.0/sql/statements/{statement['statement_id']}/result/chunks/{idx}",
+                databricks_host() + f"/api/2.0/sql/statements/{statement['statement_id']}/result/chunks/{idx}",
                 headers=auth_headers(),
                 method="GET",
             )

@@ -115,6 +115,8 @@ That separation is intentional. The policy layer is meant to optimize operationa
 - `test_project.py`: grading-time validation script for the decision-support endpoint
 - `writeup_source.md` / `writeup.pdf`: one-page submission write-up
 
+For the complete technical implementation narrative, see [`report_artifacts/full_project_implementation_report.pdf`](report_artifacts/full_project_implementation_report.pdf).
+
 ## Local Setup
 
 ```bash
@@ -147,6 +149,14 @@ pytest
 ./scripts/run_local_tests.sh
 python3 test_project.py
 ```
+
+Final local verification completed:
+- `compileall` passed
+- `pytest`: 22 passed, 1 skipped
+- `./scripts/run_local_tests.sh` passed, including the leakage check
+- `python3 test_project.py`: PASS
+- backend `/health` and `/metadata` smoke checks passed
+- Streamlit frontend reachability check passed
 
 ## Artifact-Compatible Serving
 
