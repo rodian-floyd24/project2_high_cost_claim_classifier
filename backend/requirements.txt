@@ -4,6 +4,6 @@ uvicorn
 mlflow
 pandas
 numpy<2
-scikit-learn>=1.4
+scikit-learn==1.7.2
 requests
 httpx
