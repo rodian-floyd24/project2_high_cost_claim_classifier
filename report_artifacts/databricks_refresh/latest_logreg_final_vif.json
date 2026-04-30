@@ -1,0 +1,49 @@
+{
+  "columns": [
+    "feature_left",
+    "vif_value",
+    "collinearity_flag"
+  ],
+  "rows": [
+    [
+      "chronic_condition_count_centered",
+      "4.814653503500301",
+      "false"
+    ],
+    [
+      "any_carrier_claim",
+      "3.3436625070819304",
+      "false"
+    ],
+    [
+      "provider_fragmentation_index",
+      "2.898875446531266",
+      "false"
+    ],
+    [
+      "claims_per_enrollment_month",
+      "2.8797603385597665",
+      "false"
+    ],
+    [
+      "chronic_condition_count_centered_squared",
+      "2.3176371180367976",
+      "false"
+    ],
+    [
+      "total_claim_days_log1p",
+      "2.1496654746001003",
+      "false"
+    ],
+    [
+      "enrollment_months_count",
+      "1.090327637995054",
+      "false"
+    ],
+    [
+      "age_years_imputed",
+      "1.0147009430081466",
+      "false"
+    ]
+  ]
+}

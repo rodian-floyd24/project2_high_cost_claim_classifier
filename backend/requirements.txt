@@ -1,0 +1,8 @@
+fastapi>=0.100
+pydantic>=2.0
+uvicorn
+mlflow
+pandas
+numpy
+scikit-learn>=1.4
+requests

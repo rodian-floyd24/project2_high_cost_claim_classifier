@@ -1,0 +1,40 @@
+<svg width="1400" height="320" viewBox="0 0 1400 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1400" height="320" rx="24" fill="#F4F8FC"/>
+  <rect x="40" y="80" width="210" height="120" rx="20" fill="#E8F3F2" stroke="#0F766E" stroke-width="2"/>
+  <text x="145" y="118" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#10243E">Beneficiary</text>
+  <text x="145" y="144" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#10243E">Profile</text>
+
+  <rect x="300" y="80" width="230" height="120" rx="20" fill="#E7EFFC" stroke="#2457B8" stroke-width="2"/>
+  <text x="415" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#10243E">Supervised</text>
+  <text x="415" y="141" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#10243E">Risk Engine</text>
+  <text x="415" y="171" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#4B5F79">empirical layer</text>
+
+  <rect x="580" y="80" width="190" height="120" rx="20" fill="#F2F6FB" stroke="#62748A" stroke-width="2"/>
+  <text x="675" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#10243E">MDP State</text>
+  <text x="675" y="145" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#4B5F79">risk tier</text>
+  <text x="675" y="166" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#4B5F79">chronic burden</text>
+  <text x="675" y="187" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#4B5F79">utilization + prior intervention</text>
+
+  <rect x="820" y="80" width="250" height="120" rx="20" fill="#EEF2FF" stroke="#4338CA" stroke-width="2"/>
+  <text x="945" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#10243E">Q-Learning</text>
+  <text x="945" y="141" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#10243E">Policy Layer</text>
+  <text x="945" y="171" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#4B5F79">simulated RL disclaimer</text>
+
+  <rect x="1120" y="80" width="240" height="120" rx="20" fill="#F8F5EC" stroke="#B45309" stroke-width="2"/>
+  <text x="1240" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#10243E">Policy</text>
+  <text x="1240" y="141" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#10243E">Recommendation</text>
+  <text x="1240" y="171" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#4B5F79">recommended intervention</text>
+
+  <path d="M250 140H286" stroke="#2457B8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M530 140H566" stroke="#2457B8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M770 140H806" stroke="#2457B8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M1070 140H1106" stroke="#2457B8" stroke-width="4" stroke-linecap="round"/>
+
+  <path d="M286 140L274 132M286 140L274 148" stroke="#2457B8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M566 140L554 132M566 140L554 148" stroke="#2457B8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M806 140L794 132M806 140L794 148" stroke="#2457B8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M1106 140L1094 132M1106 140L1094 148" stroke="#2457B8" stroke-width="4" stroke-linecap="round"/>
+
+  <text x="700" y="268" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#10243E">App Output</text>
+  <text x="700" y="292" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#4B5F79">risk engine -> MDP state -> policy recommendation -> simulated RL disclaimer</text>
+</svg>

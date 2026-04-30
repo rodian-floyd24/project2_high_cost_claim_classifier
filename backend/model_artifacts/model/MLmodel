@@ -1,0 +1,55 @@
+artifact_path: model
+databricks_runtime: client.2.5-aarch64-scala2.12
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.11.10
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.3.0
+mlflow_version: 2.11.4
+model_size_bytes: 286651
+model_uuid: 69114ab594e849cfa87091c60451642f
+run_id: 347f8810d18d447b954eabb5be84f49e
+signature:
+  inputs: '[{"type": "integer", "name": "enrollment_months_count", "required": true},
+    {"type": "integer", "name": "chronic_condition_count", "required": true}, {"type":
+    "long", "name": "inpatient_claim_count", "required": true}, {"type": "long", "name":
+    "outpatient_claim_count", "required": true}, {"type": "long", "name": "carrier_claim_count",
+    "required": true}, {"type": "long", "name": "pde_claim_count", "required": true},
+    {"type": "long", "name": "total_claim_days", "required": true}, {"type": "long",
+    "name": "total_claim_count", "required": true}, {"type": "long", "name": "unique_provider_count",
+    "required": true}, {"type": "double", "name": "cost_per_enrollment_month", "required":
+    true}, {"type": "double", "name": "claims_per_enrollment_month", "required": true},
+    {"type": "double", "name": "claim_days_per_enrollment_month", "required": true},
+    {"type": "double", "name": "providers_per_enrollment_month", "required": true},
+    {"type": "double", "name": "provider_fragmentation_index", "required": true},
+    {"type": "integer", "name": "any_inpatient_claim", "required": true}, {"type":
+    "integer", "name": "any_outpatient_claim", "required": true}, {"type": "integer",
+    "name": "any_carrier_claim", "required": true}, {"type": "integer", "name": "any_pde_claim",
+    "required": true}, {"type": "integer", "name": "multiple_provider_flag", "required":
+    true}, {"type": "double", "name": "rx_total_cost", "required": true}, {"type":
+    "double", "name": "inpatient_total_cost", "required": true}, {"type": "double",
+    "name": "outpatient_total_cost", "required": true}, {"type": "double", "name":
+    "carrier_total_cost", "required": true}, {"type": "double", "name": "rx_cost_log1p",
+    "required": true}, {"type": "double", "name": "inpatient_cost_log1p", "required":
+    true}, {"type": "double", "name": "outpatient_cost_log1p", "required": true},
+    {"type": "double", "name": "carrier_cost_log1p", "required": true}, {"type": "double",
+    "name": "annual_cost_log1p", "required": true}, {"type": "double", "name": "inpatient_cost_share",
+    "required": true}, {"type": "double", "name": "outpatient_cost_share", "required":
+    true}, {"type": "double", "name": "carrier_cost_share", "required": true}, {"type":
+    "double", "name": "rx_cost_share", "required": true}, {"type": "string", "name":
+    "age_band", "required": true}, {"type": "string", "name": "sex", "required": true},
+    {"type": "string", "name": "race_code", "required": true}, {"type": "string",
+    "name": "state_code", "required": true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1,
+    2]}}]'
+  params: null
+utc_time_created: '2026-04-14 15:29:52.811259'

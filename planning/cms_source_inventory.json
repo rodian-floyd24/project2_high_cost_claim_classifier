@@ -1,0 +1,100 @@
+{
+  "dataset_name": "CMS DE-SynPUF Sample 1",
+  "source_dataset_version": "DE1.0 Sample 1",
+  "sample_page_url": "https://www.cms.gov/Research-Statistics-Data-and-Systems/Downloadable-Public-Use-Files/SynPUFs/DESample01.html",
+  "default_read_options": {
+    "format": "csv",
+    "header": true,
+    "sep": ","
+  },
+  "files": [
+    {
+      "entity": "beneficiary_summary",
+      "logical_name": "beneficiary_2008",
+      "display_name": "DE1.0 Sample 1 2008 Beneficiary Summary File (ZIP)",
+      "preferred_href_substring": "de1_0_2008_beneficiary_summary_file_sample_1.zip",
+      "expected_extracted_name": "DE1_0_2008_Beneficiary_Summary_File_Sample_1.csv",
+      "expected_row_count": 116352,
+      "expected_join_key": "DESYNPUF_ID",
+      "expected_date_column": null,
+      "expected_cost_column": "MEDREIMB_IP"
+    },
+    {
+      "entity": "beneficiary_summary",
+      "logical_name": "beneficiary_2009",
+      "display_name": "DE1.0 Sample 1 2009 Beneficiary Summary File (ZIP)",
+      "preferred_href_substring": "de1_0_2009_beneficiary_summary_file_sample_1.zip",
+      "expected_extracted_name": "DE1_0_2009_Beneficiary_Summary_File_Sample_1.csv",
+      "expected_row_count": 114538,
+      "expected_join_key": "DESYNPUF_ID",
+      "expected_date_column": null,
+      "expected_cost_column": "MEDREIMB_IP"
+    },
+    {
+      "entity": "beneficiary_summary",
+      "logical_name": "beneficiary_2010",
+      "display_name": "DE1.0 Sample 1 2010 Beneficiary Summary File (ZIP)",
+      "preferred_href_substring": "de1_0_2010_beneficiary_summary_file_sample_20.zip",
+      "expected_extracted_name": "DE1_0_2010_Beneficiary_Summary_File_Sample_1.csv",
+      "expected_row_count": 112754,
+      "expected_join_key": "DESYNPUF_ID",
+      "expected_date_column": null,
+      "expected_cost_column": "MEDREIMB_IP"
+    },
+    {
+      "entity": "inpatient_claims",
+      "logical_name": "inpatient_2008_2010",
+      "display_name": "DE1.0 Sample 1 2008-2010 Inpatient Claims (ZIP)",
+      "preferred_href_substring": "de1_0_2008_to_2010_inpatient_claims_sample_1.zip",
+      "expected_extracted_name": "DE1_0_2008_to_2010_Inpatient_Claims_Sample_1.csv",
+      "expected_row_count": 66773,
+      "expected_join_key": "DESYNPUF_ID",
+      "expected_date_column": "CLM_THRU_DT",
+      "expected_cost_column": "CLM_PMT_AMT"
+    },
+    {
+      "entity": "outpatient_claims",
+      "logical_name": "outpatient_2008_2010",
+      "display_name": "DE1.0 Sample 1 2008-2010 Outpatient Claims (ZIP)",
+      "preferred_href_substring": "de1_0_2008_to_2010_outpatient_claims_sample_1.zip",
+      "expected_extracted_name": "DE1_0_2008_to_2010_Outpatient_Claims_Sample_1.csv",
+      "expected_row_count": 790790,
+      "expected_join_key": "DESYNPUF_ID",
+      "expected_date_column": "CLM_THRU_DT",
+      "expected_cost_column": "CLM_PMT_AMT"
+    },
+    {
+      "entity": "carrier_claims",
+      "logical_name": "carrier_2008_2010_a",
+      "display_name": "DE1.0 Sample 1 2008-2010 Carrier Claims 1",
+      "preferred_href_substring": "DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.zip",
+      "expected_extracted_name": "DE1_0_2008_to_2010_Carrier_Claims_Sample_1A.csv",
+      "expected_row_count": 2370667,
+      "expected_join_key": "DESYNPUF_ID",
+      "expected_date_column": "CLM_THRU_DT",
+      "expected_cost_column": "LINE_NCH_PMT_AMT"
+    },
+    {
+      "entity": "carrier_claims",
+      "logical_name": "carrier_2008_2010_b",
+      "display_name": "DE1.0 Sample 1 2008-2010 Carrier Claims 2",
+      "preferred_href_substring": "DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.zip",
+      "expected_extracted_name": "DE1_0_2008_to_2010_Carrier_Claims_Sample_1B.csv",
+      "expected_row_count": 2370668,
+      "expected_join_key": "DESYNPUF_ID",
+      "expected_date_column": "CLM_THRU_DT",
+      "expected_cost_column": "LINE_NCH_PMT_AMT"
+    },
+    {
+      "entity": "prescription_drug_events",
+      "logical_name": "pde_2008_2010",
+      "display_name": "DE1.0 Sample 1 2008-2010 Prescription Drug Events",
+      "preferred_href_substring": "DE1_0_2008_to_2010_Prescription_Drug_Events_Sample_1.zip",
+      "expected_extracted_name": "DE1_0_2008_to_2010_Prescription_Drug_Events_Sample_1.csv",
+      "expected_row_count": 5552421,
+      "expected_join_key": "DESYNPUF_ID",
+      "expected_date_column": "SRVC_DT",
+      "expected_cost_column": "TOT_RX_CST_AMT"
+    }
+  ]
+}

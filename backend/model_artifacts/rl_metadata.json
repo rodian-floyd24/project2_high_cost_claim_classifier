@@ -1,0 +1,142 @@
+{
+  "state_space": {
+    "risk_tiers": [
+      "low",
+      "elevated",
+      "high",
+      "very_high"
+    ],
+    "risk_tier_bins": [
+      [
+        "low",
+        0.0,
+        0.2
+      ],
+      [
+        "elevated",
+        0.2,
+        0.4
+      ],
+      [
+        "high",
+        0.4,
+        0.6
+      ],
+      [
+        "very_high",
+        0.6,
+        1.01
+      ]
+    ],
+    "chronic_burdens": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "chronic_burden_bins": [
+      [
+        "low",
+        0,
+        2
+      ],
+      [
+        "medium",
+        3,
+        5
+      ],
+      [
+        "high",
+        6,
+        99
+      ]
+    ],
+    "utilization_levels": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "utilization_bin_rules": {
+      "low": {
+        "max_total_claim_count": 8,
+        "max_total_claim_days": 5
+      },
+      "medium": {
+        "max_total_claim_count": 20,
+        "max_total_claim_days": 15
+      },
+      "high": {
+        "max_total_claim_count": null,
+        "max_total_claim_days": null
+      }
+    },
+    "prior_interventions": [
+      "none",
+      "recent_low_touch",
+      "recent_intensive"
+    ],
+    "state_count": 108
+  },
+  "actions": {
+    "no_action": {
+      "action_id": 0,
+      "display_name": "No action",
+      "description": "Observe only; no intervention cost incurred.",
+      "intervention_cost": 0.0,
+      "baseline_risk_multiplier": 1.0
+    },
+    "low_touch_outreach": {
+      "action_id": 1,
+      "display_name": "Low-touch outreach",
+      "description": "Digital reminder, education, or light outreach.",
+      "intervention_cost": 1.0,
+      "baseline_risk_multiplier": 0.95
+    },
+    "care_coordination_call": {
+      "action_id": 2,
+      "display_name": "Care coordination call",
+      "description": "Moderate-cost nurse or care coordination call.",
+      "intervention_cost": 3.0,
+      "baseline_risk_multiplier": 0.88
+    },
+    "intensive_case_management": {
+      "action_id": 3,
+      "display_name": "Intensive case management",
+      "description": "High-touch intervention with highest operational cost.",
+      "intervention_cost": 6.0,
+      "baseline_risk_multiplier": 0.8
+    }
+  },
+  "reward_config": {
+    "high_cost_penalty": -12.0,
+    "non_high_cost_bonus": 3.0,
+    "risk_improvement_bonus": 2.0,
+    "risk_worsening_penalty": -2.0,
+    "overtreatment_penalty": -2.0
+  },
+  "risk_tier_action_effect": {
+    "low": 1.0,
+    "elevated": 1.05,
+    "high": 1.1,
+    "very_high": 1.15
+  },
+  "prior_intervention_effect": {
+    "none": 1.0,
+    "recent_low_touch": 0.95,
+    "recent_intensive": 0.85
+  },
+  "q_learning": {
+    "alpha": 0.1,
+    "gamma": 0.95,
+    "epsilon_start": 0.2,
+    "epsilon_end": 0.02,
+    "episodes": 50000,
+    "max_steps_per_episode": 12,
+    "random_seed": 42
+  },
+  "training_notes": {
+    "offline_initialization": "Offline Q-learning training bootstraps episodes from stylized initial risk probabilities by risk tier. Those bootstrap probabilities are used only to initialize simulated training episodes.",
+    "online_policy_use": "Online policy use starts from the actual supervised-model probability for the beneficiary and maps that empirical score into the MDP state and transition logic.",
+    "episode_dynamics": "Chronic burden is treated as fixed within the simulated episode horizon in v1, while risk tier, utilization intensity, and prior intervention status can change across steps."
+  },
+  "disclaimer": "The policy layer is a simulated MDP/Q-learning intervention prototype built on stylized transition and reward assumptions. It is not causally learned from real intervention-response histories."
+}

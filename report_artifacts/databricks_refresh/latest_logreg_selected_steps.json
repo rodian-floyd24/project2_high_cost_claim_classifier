@@ -1,0 +1,22 @@
+{
+  "columns": [
+    "selection_step",
+    "action",
+    "term_name",
+    "aic",
+    "bic",
+    "parameter_count",
+    "selected_terms"
+  ],
+  "rows": [
+    [
+      "0",
+      "full_vif_screened_model",
+      "age_years_imputed,sex,race_code,enrollment_months_count,chronic_condition_count_centered,chronic_condition_count_centered_squared,claims_per_enrollment_month,total_claim_days_log1p,provider_fragmentation_index,any_carrier_claim",
+      "49101.606163640914",
+      "49224.94279631743",
+      "13",
+      "age_years_imputed,sex,race_code,enrollment_months_count,chronic_condition_count_centered,chronic_condition_count_centered_squared,claims_per_enrollment_month,total_claim_days_log1p,provider_fragmentation_index,any_carrier_claim"
+    ]
+  ]
+}
