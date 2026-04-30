@@ -3,6 +3,7 @@ pydantic>=2.0
 uvicorn
 mlflow
 pandas
-numpy
+numpy<2
 scikit-learn>=1.4
 requests
+httpx
