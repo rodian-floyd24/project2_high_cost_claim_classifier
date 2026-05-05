@@ -108,6 +108,7 @@ def apply_binary_label(modeling_df, threshold: float):
 
     return (
         modeling_df.withColumn("target_high_cost_threshold", F.lit(float(threshold)))
+        .withColumn("target_year_high_cost_threshold", F.lit(float(threshold)))
         .withColumn(
             "label",
             F.when(F.col("target_annual_claim_cost") >= F.lit(float(threshold)), F.lit(1.0)).otherwise(F.lit(0.0)),

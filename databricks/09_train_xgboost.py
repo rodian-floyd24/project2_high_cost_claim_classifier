@@ -32,6 +32,8 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from xgboost import XGBClassifier
 
+from databricks.modeling_utils import apply_threshold, compute_training_only_threshold, reject_target_leakage
+
 
 GOLD_DATABASE = os.environ.get("GOLD_DATABASE", "default")
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", GOLD_DATABASE)
@@ -280,32 +282,8 @@ def add_training_target(
     validation_df: DataFrame,
     test_df: DataFrame,
 ) -> tuple[DataFrame, DataFrame, DataFrame, float]:
-    combined_df = train_df.unionByName(validation_df).unionByName(test_df)
-    threshold_df = combined_df.groupBy("target_year").agg(
-        F.expr(f"percentile_approx(target_annual_claim_cost, {TARGET_QUANTILE})").alias(
-            "target_year_high_cost_threshold"
-        )
-    )
-    threshold_summary = threshold_df.agg(F.avg("target_year_high_cost_threshold").alias("threshold")).collect()[0]
-    threshold = float(threshold_summary["threshold"])
-
-    def with_target(df: DataFrame) -> DataFrame:
-        return (
-            df.join(threshold_df, "target_year", "left")
-            .withColumn(
-                "target_cost_within_year_percentile",
-                F.percent_rank().over(Window.partitionBy("target_year").orderBy(F.col("target_annual_claim_cost"))),
-            )
-            .withColumn(
-                "label",
-                F.when(
-                    F.col("target_annual_claim_cost") > F.col("target_year_high_cost_threshold"),
-                    F.lit(1.0),
-                ).otherwise(F.lit(0.0)),
-            )
-        )
-
-    return with_target(train_df), with_target(validation_df), with_target(test_df), float(threshold)
+    threshold = compute_training_only_threshold(train_df, TARGET_QUANTILE)
+    return apply_threshold(train_df, threshold), apply_threshold(validation_df, threshold), apply_threshold(test_df, threshold), threshold
 
 
 def build_preprocessor() -> ColumnTransformer:
@@ -600,6 +578,7 @@ def main() -> None:
     test_pdf = to_pandas_features(test_df)
 
     feature_columns = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+    reject_target_leakage(feature_columns)
     x_train = train_pdf[feature_columns]
     y_train = train_pdf["label"].astype(int)
     x_validation = validation_pdf[feature_columns]
