@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 
 from pyspark.sql import functions as F
+from pyspark.sql.window import Window
 
 
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", "default")
@@ -38,9 +39,26 @@ def latest_run(table_name: str, model_name: str):
         raise ValueError(f"{MODEL_DATABASE}.{table_name} is missing a decision-threshold audit column")
 
     test_df = df.filter(F.col("split_name") == F.lit(FINAL_EVALUATION_SPLIT))
-    latest_ts = test_df.agg(F.max("processed_at_utc").alias("processed_at_utc")).collect()[0]["processed_at_utc"]
+    if test_df.count() == 0:
+        raise ValueError(f"{MODEL_DATABASE}.{table_name} has no completed {FINAL_EVALUATION_SPLIT} audit rows")
+
+    run_window = Window.orderBy(F.col("latest_processed_at_utc").desc(), F.col("run_id").desc())
+    latest_run_id = (
+        test_df.groupBy("run_id")
+        .agg(F.max("processed_at_utc").alias("latest_processed_at_utc"))
+        .withColumn("run_rank", F.row_number().over(run_window))
+        .filter(F.col("run_rank") == F.lit(1))
+        .select("run_id")
+        .collect()[0]["run_id"]
+    )
+    selected_df = test_df.filter(F.col("run_id") == F.lit(latest_run_id))
+    if selected_df.count() != 1:
+        raise ValueError(
+            f"{MODEL_DATABASE}.{table_name} must have exactly one {FINAL_EVALUATION_SPLIT} row "
+            f"for selected run_id={latest_run_id}"
+        )
     return (
-        test_df.filter(F.col("processed_at_utc") == F.lit(latest_ts))
+        selected_df
         .withColumn("model_name", F.lit(model_name))
         .withColumn("model_group", F.lit(MODEL_GROUPS[model_name]))
         .withColumn("decision_threshold_from_tuning_split", F.coalesce(*threshold_columns))

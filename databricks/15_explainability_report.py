@@ -12,6 +12,8 @@ import os
 
 from pyspark.sql import functions as F
 
+from databricks.run_selection_utils import filter_to_selected_test_rows, selected_test_runs
+
 
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", os.environ.get("GOLD_DATABASE", "default"))
 PREDICTION_SCORE_TABLE = "model_prediction_scores"
@@ -21,9 +23,13 @@ EXPLAINABILITY_AUDIT_TABLE = "model_explainability_audit"
 def main() -> None:
     source = f"{MODEL_DATABASE}.{PREDICTION_SCORE_TABLE}"
     scores = spark.table(source)
-    latest = scores.filter(F.col("processed_at_utc") == scores.agg(F.max("processed_at_utc")).collect()[0][0])
+    latest = filter_to_selected_test_rows(
+        scores,
+        selected_test_runs(spark, MODEL_DATABASE),
+        source,
+    )
     summary = (
-        latest.groupBy("model_name", "split_name")
+        latest.groupBy("model_name", "split_name", "run_id")
         .agg(
             F.count("*").alias("row_count"),
             F.avg("predicted_probability").alias("mean_predicted_probability"),

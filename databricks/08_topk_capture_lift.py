@@ -18,26 +18,26 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from pyspark.sql import functions as F
 
+from databricks.run_selection_utils import filter_to_selected_test_rows, selected_test_runs
+
 
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", "default")
 CURVE_TABLE_NAME = "model_topk_curve_points"
 
 
-def latest_curve_rows(model_name: str):
-    df = spark.table(f"{MODEL_DATABASE}.{CURVE_TABLE_NAME}")
-    test_curve_df = df.filter((F.col("model_name") == model_name) & (F.col("split_name") == "test"))
-    latest_ts = test_curve_df.agg(F.max("processed_at_utc").alias("processed_at_utc")).collect()[0][
-        "processed_at_utc"
-    ]
-    return test_curve_df.filter(F.col("processed_at_utc") == F.lit(latest_ts))
+def selected_curve_rows():
+    curve_df = spark.table(f"{MODEL_DATABASE}.{CURVE_TABLE_NAME}")
+    selected_runs = selected_test_runs(spark, MODEL_DATABASE)
+    return filter_to_selected_test_rows(
+        curve_df,
+        selected_runs,
+        f"{MODEL_DATABASE}.{CURVE_TABLE_NAME}",
+    )
 
 
 def main() -> None:
-    models = ["logistic_regression", "random_forest", "gradient_boosting", "xgboost"]
-    curve_pdf = pd.concat(
-        [latest_curve_rows(model_name).toPandas() for model_name in models],
-        ignore_index=True,
-    ).sort_values(["model_name", "selected_fraction"])
+    curve_pdf = selected_curve_rows().toPandas().sort_values(["model_name", "selected_fraction"])
+    models = list(curve_pdf["model_name"].drop_duplicates())
 
     plt.figure(figsize=(10, 6))
     for model_name in models:

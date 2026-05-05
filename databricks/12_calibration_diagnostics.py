@@ -16,22 +16,24 @@ import pandas as pd
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
+from databricks.run_selection_utils import filter_to_selected_test_rows, selected_test_runs
+
 
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", "default")
 PREDICTION_SCORE_TABLE = "model_prediction_scores"
 CALIBRATION_SUMMARY_TABLE = "model_calibration_summary"
 CALIBRATION_DECILE_TABLE = "model_calibration_deciles"
 RELIABILITY_TABLE = "model_reliability_curve_points"
-MODELS = ["logistic_regression", "random_forest", "gradient_boosting", "xgboost"]
 
 
-def latest_test_scores(model_name: str):
-    df = spark.table(f"{MODEL_DATABASE}.{PREDICTION_SCORE_TABLE}")
-    model_df = df.filter((F.col("model_name") == model_name) & (F.col("split_name") == "test"))
-    latest_ts = model_df.agg(F.max("processed_at_utc").alias("processed_at_utc")).collect()[0]["processed_at_utc"]
-    if latest_ts is None:
-        raise ValueError(f"No held-out test scores found for model {model_name}.")
-    return model_df.filter(F.col("processed_at_utc") == F.lit(latest_ts))
+def selected_test_scores():
+    score_df = spark.table(f"{MODEL_DATABASE}.{PREDICTION_SCORE_TABLE}")
+    selected_runs = selected_test_runs(spark, MODEL_DATABASE)
+    return filter_to_selected_test_rows(
+        score_df,
+        selected_runs,
+        f"{MODEL_DATABASE}.{PREDICTION_SCORE_TABLE}",
+    )
 
 
 def append_decile_columns(pdf: pd.DataFrame) -> pd.DataFrame:
@@ -41,7 +43,7 @@ def append_decile_columns(pdf: pd.DataFrame) -> pd.DataFrame:
     return scored.drop(columns=["rank_order"])
 
 
-def calibration_summary_rows(model_name: str, pdf: pd.DataFrame) -> list[dict[str, object]]:
+def calibration_summary_rows(model_name: str, run_id: str, pdf: pd.DataFrame) -> list[dict[str, object]]:
     brier_score = float(((pdf["predicted_probability"] - pdf["label"]) ** 2).mean())
     average_predicted = float(pdf["predicted_probability"].mean())
     observed_rate = float(pdf["label"].mean())
@@ -49,6 +51,7 @@ def calibration_summary_rows(model_name: str, pdf: pd.DataFrame) -> list[dict[st
     return [
         {
             "model_name": model_name,
+            "run_id": run_id,
             "split_name": "test",
             "row_count": int(len(pdf)),
             "positive_rate": observed_rate,
@@ -59,7 +62,7 @@ def calibration_summary_rows(model_name: str, pdf: pd.DataFrame) -> list[dict[st
     ]
 
 
-def decile_rows(model_name: str, pdf: pd.DataFrame) -> list[dict[str, object]]:
+def decile_rows(model_name: str, run_id: str, pdf: pd.DataFrame) -> list[dict[str, object]]:
     scored = append_decile_columns(pdf)
     grouped = (
         scored.groupby("score_decile", as_index=False)
@@ -73,12 +76,13 @@ def decile_rows(model_name: str, pdf: pd.DataFrame) -> list[dict[str, object]]:
         .sort_values("score_decile")
     )
     grouped["model_name"] = model_name
+    grouped["run_id"] = run_id
     grouped["split_name"] = "test"
     grouped["calibration_gap"] = grouped["mean_predicted_probability"] - grouped["observed_rate"]
     return grouped.to_dict("records")
 
 
-def reliability_rows(model_name: str, pdf: pd.DataFrame) -> list[dict[str, object]]:
+def reliability_rows(model_name: str, run_id: str, pdf: pd.DataFrame) -> list[dict[str, object]]:
     scored = pdf.copy()
     bin_edges = [i / 10 for i in range(11)]
     scored["probability_bin"] = pd.cut(
@@ -99,6 +103,7 @@ def reliability_rows(model_name: str, pdf: pd.DataFrame) -> list[dict[str, objec
         .sort_values("probability_bin")
     )
     grouped["model_name"] = model_name
+    grouped["run_id"] = run_id
     grouped["split_name"] = "test"
     grouped["bin_lower_bound"] = grouped["probability_bin"].astype(int) / 10.0
     grouped["bin_upper_bound"] = grouped["bin_lower_bound"] + 0.1
@@ -115,17 +120,26 @@ def main() -> None:
     reliability_output_rows: list[dict[str, object]] = []
     plot_frames: list[pd.DataFrame] = []
 
-    for model_name in MODELS:
-        pdf = latest_test_scores(model_name).select("label", "predicted_probability").toPandas()
-        summary_rows.extend(calibration_summary_rows(model_name, pdf))
-        decile_output_rows.extend(decile_rows(model_name, pdf))
-        reliability_output_rows.extend(reliability_rows(model_name, pdf))
-        plot_frame = pd.DataFrame(reliability_rows(model_name, pdf))
+    selected_scores = selected_test_scores()
+    for row in selected_scores.select("model_name", "run_id").distinct().orderBy("model_name").collect():
+        model_name = row["model_name"]
+        run_id = row["run_id"]
+        pdf = (
+            selected_scores.filter(F.col("model_name") == F.lit(model_name))
+            .filter(F.col("run_id") == F.lit(run_id))
+            .select("label", "predicted_probability")
+            .toPandas()
+        )
+        summary_rows.extend(calibration_summary_rows(model_name, run_id, pdf))
+        decile_output_rows.extend(decile_rows(model_name, run_id, pdf))
+        reliability_output_rows.extend(reliability_rows(model_name, run_id, pdf))
+        plot_frame = pd.DataFrame(reliability_rows(model_name, run_id, pdf))
         plot_frames.append(plot_frame)
 
     summary_schema = T.StructType(
         [
             T.StructField("model_name", T.StringType(), False),
+            T.StructField("run_id", T.StringType(), False),
             T.StructField("split_name", T.StringType(), False),
             T.StructField("row_count", T.LongType(), False),
             T.StructField("positive_rate", T.DoubleType(), False),
@@ -138,6 +152,7 @@ def main() -> None:
     decile_schema = T.StructType(
         [
             T.StructField("model_name", T.StringType(), False),
+            T.StructField("run_id", T.StringType(), False),
             T.StructField("split_name", T.StringType(), False),
             T.StructField("score_decile", T.LongType(), False),
             T.StructField("row_count", T.LongType(), False),
@@ -152,6 +167,7 @@ def main() -> None:
     reliability_schema = T.StructType(
         [
             T.StructField("model_name", T.StringType(), False),
+            T.StructField("run_id", T.StringType(), False),
             T.StructField("split_name", T.StringType(), False),
             T.StructField("probability_bin", T.LongType(), False),
             T.StructField("row_count", T.LongType(), False),
