@@ -42,6 +42,22 @@ The next step is to make the project operationally actuarial. That means moving 
 
 Use this document as the implementation contract.
 
+### Agent Execution Rule
+
+Do not attempt to implement this entire blueprint in one pass.
+
+Before editing code:
+
+1. Inspect the repository.
+2. Identify the smallest relevant phase or backlog item.
+3. Make a minimal, reviewable diff.
+4. Run compile checks and the relevant tests.
+5. Summarize what changed.
+6. State which acceptance criteria are now satisfied.
+7. State which acceptance criteria remain incomplete.
+
+Never modify model target logic, feature definitions, split logic, or threshold logic without explicitly checking for target leakage.
+
 When Codex modifies code, it should preserve the following non-negotiable standards:
 
 1. **No target leakage.**
