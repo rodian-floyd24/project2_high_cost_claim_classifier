@@ -16,6 +16,8 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
+from databricks.modeling_utils import apply_threshold, compute_training_only_threshold, reject_target_leakage
+
 
 GOLD_DATABASE = os.environ.get("GOLD_DATABASE", "default")
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", GOLD_DATABASE)
@@ -26,6 +28,7 @@ FEATURE_CATEGORY_TARGET_TABLE = "gold_feature_category_target_rate_audit"
 FEATURE_DRIFT_TABLE = "gold_feature_train_test_drift_audit"
 TARGET_QUANTILE = float(os.environ.get("TARGET_QUANTILE", "0.9"))
 MAX_CATEGORY_LEVELS = int(os.environ.get("MAX_CATEGORY_LEVELS", "50"))
+VALIDATION_BUCKET_CUTOFF = int(os.environ.get("VALIDATION_BUCKET_CUTOFF", "15"))
 
 KEY_COLUMNS = {"bene_id", "year", "target_year"}
 TARGET_COLUMNS = {"target_annual_claim_cost", "target_year_high_cost_threshold", "label"}
@@ -124,23 +127,36 @@ def build_modeling_frame(df: DataFrame) -> DataFrame:
     )
 
 
-def add_target(df: DataFrame) -> DataFrame:
-    threshold_df = df.groupBy("target_year").agg(
-        F.expr(f"percentile_approx(target_annual_claim_cost, {TARGET_QUANTILE})").alias(
-            "target_year_high_cost_threshold"
-        )
+def split_modeling_frame(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
+    target_years = [row["target_year"] for row in df.select("target_year").distinct().orderBy("target_year").collect()]
+    if len(target_years) < 2:
+        raise ValueError("Feature audit requires at least two prospective target years.")
+
+    test_target_year = target_years[-1]
+    training_pool = df.filter(F.col("target_year") < F.lit(test_target_year))
+    test_df = df.filter(F.col("target_year") == F.lit(test_target_year)).withColumn("audit_split", F.lit("test"))
+
+    split_assignments = training_pool.select("bene_id").distinct().withColumn(
+        "shared_split_bucket",
+        F.pmod(F.xxhash64("bene_id"), F.lit(100)),
     )
-    return df.join(threshold_df, "target_year", "left").withColumn(
-        "label",
-        (F.col("target_annual_claim_cost") > F.col("target_year_high_cost_threshold")).cast("int"),
+    train_ids = split_assignments.filter(F.col("shared_split_bucket") >= F.lit(VALIDATION_BUCKET_CUTOFF)).select(
+        "bene_id"
     )
+    validation_ids = split_assignments.filter(F.col("shared_split_bucket") < F.lit(VALIDATION_BUCKET_CUTOFF)).select(
+        "bene_id"
+    )
+    train_df = training_pool.join(train_ids, "bene_id", "inner").withColumn("audit_split", F.lit("train"))
+    validation_df = training_pool.join(validation_ids, "bene_id", "inner").withColumn("audit_split", F.lit("validation"))
+    return train_df, validation_df, test_df
 
 
-def add_temporal_split(df: DataFrame) -> DataFrame:
-    latest_target_year = df.agg(F.max("target_year").alias("latest_target_year")).collect()[0]["latest_target_year"]
-    return df.withColumn(
-        "audit_split",
-        F.when(F.col("target_year") == F.lit(latest_target_year), F.lit("test")).otherwise(F.lit("train")),
+def add_training_target(train_df: DataFrame, validation_df: DataFrame, test_df: DataFrame) -> DataFrame:
+    threshold = compute_training_only_threshold(train_df, TARGET_QUANTILE)
+    return (
+        apply_threshold(train_df, threshold)
+        .unionByName(apply_threshold(validation_df, threshold))
+        .unionByName(apply_threshold(test_df, threshold))
     )
 
 
@@ -461,8 +477,10 @@ def write_table(df: DataFrame, table_name: str) -> None:
 
 def main() -> None:
     spark.sql(f"CREATE DATABASE IF NOT EXISTS {MODEL_DATABASE}")
-    audited_df = add_temporal_split(add_target(build_modeling_frame(read_gold()))).cache()
+    train_df, validation_df, test_df = split_modeling_frame(build_modeling_frame(read_gold()))
+    audited_df = add_training_target(train_df, validation_df, test_df).cache()
     columns = feature_columns(audited_df)
+    reject_target_leakage(columns)
     numeric_feature_columns = numeric_columns(audited_df, columns)
     categorical_feature_columns = categorical_columns(audited_df, columns)
 

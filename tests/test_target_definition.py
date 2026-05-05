@@ -15,6 +15,7 @@ TRAINING_SCRIPTS = [
     ROOT / "databricks" / "05_train_tree_baseline.py",
     ROOT / "databricks" / "06_train_boosted_tree.py",
     ROOT / "databricks" / "09_train_xgboost.py",
+    ROOT / "databricks" / "11_feature_audit.py",
     ROOT / "databricks" / "14_logreg_variable_selection.py",
 ]
 
