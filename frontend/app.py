@@ -370,13 +370,13 @@ def load_css() -> None:
 
 def render_metric_cards() -> None:
     cards = "".join(
-        f"""
-        <div class="metric-card">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-            <div class="metric-note">{note}</div>
-        </div>
-        """
+        (
+            f'<div class="metric-card">'
+            f'<div class="metric-label">{label}</div>'
+            f'<div class="metric-value">{value}</div>'
+            f'<div class="metric-note">{note}</div>'
+            f"</div>"
+        )
         for label, value, note in PROJECT_METRICS
     )
     st.markdown(f'<div class="metric-grid">{cards}</div>', unsafe_allow_html=True)
@@ -404,12 +404,7 @@ def render_project_cards() -> None:
     for column, title, body in cards:
         with column:
             st.markdown(
-                f"""
-                <div class="project-card">
-                    <h3>{title}</h3>
-                    <p>{body}</p>
-                </div>
-                """,
+                f'<div class="project-card"><h3>{title}</h3><p>{body}</p></div>',
                 unsafe_allow_html=True,
             )
 
@@ -418,11 +413,7 @@ def render_stack() -> None:
     items = ["Databricks", "scikit-learn", "XGBoost", "FastAPI", "Streamlit"]
     html_items = "".join(f'<div class="stack-item">{item}</div>' for item in items)
     st.markdown(
-        f"""
-        <div class="stack-band">
-            <div class="stack-list">{html_items}</div>
-        </div>
-        """,
+        f'<div class="stack-band"><div class="stack-list">{html_items}</div></div>',
         unsafe_allow_html=True,
     )
 
