@@ -84,14 +84,14 @@ The backend exposes:
 
 ## Live AWS Deployment
 
-- Streamlit app: http://100.52.157.60:8501
-- Prediction API: http://100.52.157.60:8000
-- Health check: http://100.52.157.60:8000/health
+- Streamlit app: https://rayodian-ncf.com
+- Prediction API: https://rayodian-ncf.com
+- Health check: https://rayodian-ncf.com/health
 
 Grading smoke test:
 
 ```bash
-PROJECT2_API_URL="http://100.52.157.60:8000" python3 test_project.py
+PROJECT2_API_URL="https://rayodian-ncf.com" python3 test_project.py
 ```
 
 ## App Output
