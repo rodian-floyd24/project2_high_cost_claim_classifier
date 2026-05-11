@@ -82,6 +82,18 @@ The backend exposes:
 - `GET /metadata`: supervised-model metadata plus RL-policy metadata
 - `GET /health`: artifact-load health check
 
+## Live AWS Deployment
+
+- Streamlit app: http://100.52.157.60:8501
+- Prediction API: http://100.52.157.60:8000
+- Health check: http://100.52.157.60:8000/health
+
+Grading smoke test:
+
+```bash
+PROJECT2_API_URL="http://100.52.157.60:8000" python3 test_project.py
+```
+
 ## App Output
 
 The Streamlit app displays:
@@ -112,7 +124,7 @@ That separation is intentional. The policy layer is meant to optimize operationa
 - `report_artifacts/`: result tables, report discussion text, and presentation wording
 - `docs/`: actuarial governance, monitoring, human-review, model-card, validation, and data-dictionary documents
 - `scripts/`: local checks, leakage checks, and validation packet export
-- `test_project.py`: grading-time validation script for the decision-support endpoint
+- `test_project.py`: grading-time validation script for the prediction endpoint, with an extra decision-support integration check
 - `writeup_source.md` / `writeup.pdf`: one-page submission write-up
 
 For the complete technical implementation narrative, see [`report_artifacts/full_project_implementation_report.pdf`](report_artifacts/full_project_implementation_report.pdf).
@@ -152,7 +164,7 @@ python3 test_project.py
 
 Final local verification completed:
 - `compileall` passed
-- `pytest`: 22 passed, 1 skipped
+- `pytest`: 33 passed, 1 skipped
 - `./scripts/run_local_tests.sh` passed, including the leakage check
 - `python3 test_project.py`: PASS
 - backend `/health` and `/metadata` smoke checks passed
@@ -171,7 +183,7 @@ python3.11 -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
 python3 scripts/generate_validation_packet.py
 ```
 
-To target a deployed API instead of the in-process FastAPI app:
+To target a deployed API instead of the in-process FastAPI app, the script calls `POST /predict` and also smoke-checks `POST /decision_support`:
 
 ```bash
 PROJECT2_API_URL="https://your-api-url" python3 test_project.py

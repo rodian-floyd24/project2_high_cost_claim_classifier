@@ -1,7 +1,7 @@
 """
 Test Script for Actuarial Decision-Support Prototype
 ====================================================
-Sends a sample beneficiary profile to the prediction API and prints the result.
+Sends a sample beneficiary profile to the prediction endpoint and prints the result.
 
 Default behavior:
 - If PROJECT2_API_URL is set, sends an HTTP request to that deployed API.
@@ -52,21 +52,35 @@ warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
 
 
 def print_summary(result: dict[str, Any], mode: str) -> None:
-    prediction = result["prediction"]
-    recommendation = result["recommendation"]
-    state = result["state"]["current_state"]
+    prediction = result["prediction"] if "prediction" in result else result
 
     print(f"Mode: {mode}")
     print(f"Risk probability: {prediction['risk_probability']:.4f}")
     print(f"Risk tier: {prediction['risk_tier']}")
     print(f"Predicted high cost: {prediction['predicted_high_cost']}")
-    print(f"Current state: {state['label']}")
-    print(f"Recommended action: {recommendation['recommended_action_display']}")
-    print(f"Expected long-run value: {recommendation['expected_long_run_value']:.2f}")
+    print(f"Recommended action: {prediction['recommended_action']}")
     print("PASS")
 
 
-def validate_response(result: dict[str, Any]) -> None:
+def validate_prediction_response(result: dict[str, Any]) -> None:
+    required_prediction_keys = {
+        "risk_probability",
+        "risk_tier",
+        "predicted_high_cost",
+        "recommended_action",
+        "decision_threshold",
+    }
+    missing = required_prediction_keys - set(result)
+    if missing:
+        raise RuntimeError(f"Missing prediction keys: {sorted(missing)}")
+
+    if not 0.0 <= float(result["risk_probability"]) <= 1.0:
+        raise RuntimeError("risk_probability outside [0, 1]")
+    if not result["recommended_action"]:
+        raise RuntimeError("recommended_action missing")
+
+
+def validate_decision_support_response(result: dict[str, Any]) -> None:
     required_top_level = {"prediction", "state", "recommendation", "simulation", "disclaimer"}
     missing = required_top_level - set(result)
     if missing:
@@ -87,13 +101,22 @@ def validate_response(result: dict[str, Any]) -> None:
 def run_against_http(api_base_url: str) -> None:
     import requests
 
-    url = api_base_url.rstrip("/") + "/decision_support"
-    response = requests.post(url, json=SAMPLE_PAYLOAD, timeout=60)
+    base_url = api_base_url.rstrip("/")
+    prediction_url = base_url + "/predict"
+    response = requests.post(prediction_url, json=SAMPLE_PAYLOAD, timeout=60)
     if response.status_code != 200:
-        raise RuntimeError(f"FAIL: {url} returned {response.status_code}: {response.text[:500]}")
-    result = response.json()
-    validate_response(result)
-    print_summary(result, mode=f"http:{url}")
+        raise RuntimeError(f"FAIL: {prediction_url} returned {response.status_code}: {response.text[:500]}")
+    prediction_result = response.json()
+    validate_prediction_response(prediction_result)
+
+    decision_support_url = base_url + "/decision_support"
+    response = requests.post(decision_support_url, json=SAMPLE_PAYLOAD, timeout=60)
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"FAIL: {decision_support_url} returned {response.status_code}: {response.text[:500]}"
+        )
+    validate_decision_support_response(response.json())
+    print_summary(prediction_result, mode=f"http:{prediction_url}")
 
 
 def run_in_process() -> None:
@@ -101,14 +124,19 @@ def run_in_process() -> None:
     from backend.app import app
 
     client = TestClient(app)
+    response = client.post("/predict", json=SAMPLE_PAYLOAD)
+    if response.status_code != 200:
+        raise RuntimeError(f"FAIL: in-process /predict returned {response.status_code}: {response.text[:500]}")
+    prediction_result = response.json()
+    validate_prediction_response(prediction_result)
+
     response = client.post("/decision_support", json=SAMPLE_PAYLOAD)
     if response.status_code != 200:
         raise RuntimeError(
             f"FAIL: in-process /decision_support returned {response.status_code}: {response.text[:500]}"
         )
-    result = response.json()
-    validate_response(result)
-    print_summary(result, mode="in-process")
+    validate_decision_support_response(response.json())
+    print_summary(prediction_result, mode="in-process:/predict")
 
 
 def main() -> int:
