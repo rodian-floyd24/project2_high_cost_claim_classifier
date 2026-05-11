@@ -133,9 +133,9 @@ def load_css() -> None:
             color: var(--ink);
         }
         .block-container {
-            max-width: 1180px;
-            padding-top: 1.4rem;
-            padding-bottom: 3.5rem;
+            max-width: 1120px;
+            padding-top: 2rem;
+            padding-bottom: 4rem;
         }
         [data-testid="stSidebar"] {
             background: #eef3f8;
@@ -149,19 +149,20 @@ def load_css() -> None:
             align-items: center;
             justify-content: space-between;
             gap: 1rem;
-            padding: 0.4rem 0 1.1rem 0;
+            padding: 1rem 0 1.4rem 0;
             color: var(--ink);
         }
         .brand {
-            font-weight: 800;
+            font-size: 1.05rem;
+            font-weight: 900;
             color: var(--ink);
             letter-spacing: 0;
         }
         .nav-links {
             display: flex;
-            gap: 1rem;
+            gap: 1.35rem;
             flex-wrap: wrap;
-            font-size: 0.92rem;
+            font-size: 0.95rem;
         }
         .nav-links a {
             color: var(--navy) !important;
@@ -195,7 +196,7 @@ def load_css() -> None:
             color: #334e68;
             font-size: 1.22rem;
             line-height: 1.62;
-            max-width: 780px;
+            max-width: 720px;
             margin: 0;
         }
         .button-row {
@@ -263,11 +264,24 @@ def load_css() -> None:
             font-size: 1rem;
             line-height: 1.65;
             margin-bottom: 1rem;
-            max-width: 880px;
+            max-width: 760px;
         }
         .project-card {
             min-height: 178px;
             padding: 1.25rem;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .project-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.075);
+        }
+        .card-kicker {
+            color: var(--navy);
+            font-size: 0.72rem;
+            font-weight: 850;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 0.55rem;
         }
         .project-card h3 {
             color: var(--ink);
@@ -300,6 +314,14 @@ def load_css() -> None:
             font-weight: 750;
             text-align: center;
         }
+        .app-module {
+            background: linear-gradient(180deg, #ffffff 0%, #f4f8fc 100%);
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            box-shadow: 0 18px 45px rgba(31, 78, 121, 0.07);
+            margin-top: 2rem;
+            padding: 2rem;
+        }
         .scorer-shell {
             background: #ffffff;
             border: 1px solid var(--line);
@@ -322,6 +344,60 @@ def load_css() -> None:
             line-height: 1.55;
             margin-bottom: 1rem;
             padding: 0.95rem 1rem;
+        }
+        .result-strip {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.8rem;
+            margin: 1rem 0 1.2rem 0;
+        }
+        .result-strip > div {
+            background: white;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 1rem;
+        }
+        .result-label {
+            display: block;
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 750;
+            margin-bottom: 0.3rem;
+        }
+        .result-strip strong {
+            color: var(--ink);
+            display: block;
+            font-size: 1.35rem;
+            line-height: 1.2;
+        }
+        .recommendation-card {
+            background: #e9f7ef;
+            border: 1px solid #bfe7cd;
+            border-left: 6px solid #16803c;
+            border-radius: 18px;
+            color: #0f5132;
+            padding: 1.1rem 1.2rem;
+        }
+        .recommendation-label {
+            font-size: 0.75rem;
+            font-weight: 850;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.35rem;
+        }
+        .recommendation-title {
+            font-size: 1.25rem;
+            font-weight: 850;
+            line-height: 1.25;
+            margin-bottom: 0.5rem;
+        }
+        .recommendation-value {
+            font-weight: 800;
+            margin-bottom: 0.6rem;
+        }
+        .recommendation-card p {
+            line-height: 1.5;
+            margin: 0;
         }
         .footer {
             border-top: 1px solid var(--line);
@@ -354,8 +430,11 @@ def load_css() -> None:
             .subtitle {
                 font-size: 1.04rem;
             }
-            .metric-grid, .stack-list {
+            .metric-grid, .stack-list, .result-strip {
                 grid-template-columns: 1fr;
+            }
+            .app-module {
+                padding: 1.1rem;
             }
             .top-nav {
                 align-items: flex-start;
@@ -387,24 +466,27 @@ def render_project_cards() -> None:
     cards = [
         (
             col1,
+            "Predictive Modeling",
             "High-Cost Claim Classifier",
             "Prospective healthcare risk model using medallion data engineering, calibrated scoring, lift curves, and top-k capture diagnostics.",
         ),
         (
             col2,
+            "Policy Prototype",
             "RL Decision Support Layer",
             "A simulated intervention-policy prototype that maps scored beneficiaries into discrete MDP states and compares long-run action values.",
         ),
         (
             col3,
+            "Cloud Pipeline",
             "Distributed ML Pipeline",
             "Databricks bronze, silver, and gold layers feeding MLflow artifacts, FastAPI serving, and public Streamlit deployment.",
         ),
     ]
-    for column, title, body in cards:
+    for column, kicker, title, body in cards:
         with column:
             st.markdown(
-                f'<div class="project-card"><h3>{title}</h3><p>{body}</p></div>',
+                f'<div class="project-card"><div class="card-kicker">{kicker}</div><h3>{title}</h3><p>{body}</p></div>',
                 unsafe_allow_html=True,
             )
 
@@ -418,10 +500,17 @@ def render_stack() -> None:
     )
 
 
-def build_payload(preset: dict) -> tuple[dict, bool]:
+def build_payload() -> tuple[dict, bool]:
     st.markdown('<div class="scorer-shell">', unsafe_allow_html=True)
     st.markdown('<div class="scorer-heading">Beneficiary risk scorer</div>', unsafe_allow_html=True)
     st.caption("Enter current-year utilization and cost signals. The app estimates next-year high-cost risk and returns a simulated policy recommendation.")
+
+    preset_name = st.selectbox(
+        "Scenario preset",
+        list(PRESETS.keys()),
+        help="Load a demo profile, then edit individual inputs before scoring.",
+    )
+    preset = PRESETS[preset_name]
 
     demographic_col, enrollment_col = st.columns(2)
     with demographic_col:
@@ -536,10 +625,17 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
 
     probability = result["risk_probability"]
     annual_cost_proxy = result["annual_claim_cost_proxy"]
-    metric_a, metric_b, metric_c = st.columns(3)
-    metric_a.metric("Risk probability", f"{probability:.1%}")
-    metric_b.metric("Risk tier", result["risk_tier"])
-    metric_c.metric("Predicted class", "High-cost" if result["predicted_high_cost"] else "Not high-cost")
+    predicted_class = "High-cost" if result["predicted_high_cost"] else "Not high-cost"
+    st.markdown(
+        (
+            '<div class="result-strip">'
+            f'<div><span class="result-label">Risk probability</span><strong>{probability:.1%}</strong></div>'
+            f'<div><span class="result-label">Risk tier</span><strong>{result["risk_tier"]}</strong></div>'
+            f'<div><span class="result-label">Predicted class</span><strong>{predicted_class}</strong></div>'
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
 
     chart_col, cost_col = st.columns([0.95, 1.05])
     with chart_col:
@@ -587,7 +683,7 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
             color_discrete_sequence=["#1f4e79", "#2457b8", "#4f7cac", "#8aa6c1"],
             title=f"Current-year cost mix (${annual_cost_proxy:,.0f} total)",
         )
-        cost_fig.update_layout(height=300, showlegend=False, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
+        cost_fig.update_layout(height=320, showlegend=False, margin=dict(l=95, r=20, t=50, b=35), paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(cost_fig, use_container_width=True)
 
     current_state = recommendation["current_state"] if recommendation is not None else None
@@ -612,10 +708,16 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
     if recommendation is not None:
         st.markdown("#### Recommended action")
         action_col_a, action_col_b = st.columns([0.95, 1.05])
-        action_col_a.success(
-            f"{recommendation['recommended_action_display']}\n\n"
-            f"Estimated long-run value: {recommendation['expected_long_run_value']:.2f}\n\n"
-            f"{recommendation['policy_explanation']}"
+        action_col_a.markdown(
+            (
+                '<div class="recommendation-card">'
+                '<div class="recommendation-label">Recommended action</div>'
+                f'<div class="recommendation-title">{recommendation["recommended_action_display"]}</div>'
+                f'<div class="recommendation-value">Long-run value: {recommendation["expected_long_run_value"]:.2f}</div>'
+                f'<p>{recommendation["policy_explanation"]}</p>'
+                "</div>"
+            ),
+            unsafe_allow_html=True,
         )
         q_values_df = pd.DataFrame(recommendation["action_values"])
         q_values_df["is_recommended"] = q_values_df["action"] == recommendation["recommended_action"]
@@ -633,9 +735,9 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
         )
         q_fig.update_traces(textposition="outside", cliponaxis=False)
         q_fig.update_layout(
-            height=330,
+            height=380,
             showlegend=False,
-            margin=dict(l=10, r=35, t=50, b=10),
+            margin=dict(l=120, r=50, t=50, b=45),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="#ffffff",
             xaxis_title="Estimated long-run value",
@@ -672,12 +774,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 load_css()
-
-with st.sidebar:
-    st.subheader("Scenario presets")
-    preset_name = st.selectbox("Load a starting profile", list(PRESETS.keys()))
-    preset = PRESETS[preset_name]
-    st.caption("Presets make the application easier to demo. You can still edit every input before scoring.")
 
 st.markdown(
     """
@@ -746,11 +842,12 @@ st.markdown(
 )
 render_stack()
 
-st.markdown('<h2 id="scorer" class="section-heading">Live Risk Scorer</h2>', unsafe_allow_html=True)
+st.markdown('<div id="scorer" class="app-module">', unsafe_allow_html=True)
+st.markdown('<h2 class="section-heading" style="margin-top:0;">Live Risk Scorer</h2>', unsafe_allow_html=True)
 left, right = st.columns([1.04, 0.96], gap="large")
 
 with left:
-    payload, score_clicked = build_payload(preset)
+    payload, score_clicked = build_payload()
 
 with right:
     if score_clicked:
@@ -760,6 +857,8 @@ with right:
         render_results(result, state_response, recommendation, simulation)
     else:
         render_results(None, None, None, None)
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown(
     """
