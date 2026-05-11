@@ -6,6 +6,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./modeling_utils
+
+# COMMAND ----------
+
 from __future__ import annotations
 
 import math
@@ -15,8 +19,6 @@ from datetime import datetime, timezone
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
-
-from databricks.modeling_utils import apply_threshold, compute_training_only_threshold, reject_target_leakage
 
 
 GOLD_DATABASE = os.environ.get("GOLD_DATABASE", "default")
@@ -28,10 +30,11 @@ FEATURE_CATEGORY_TARGET_TABLE = "gold_feature_category_target_rate_audit"
 FEATURE_DRIFT_TABLE = "gold_feature_train_test_drift_audit"
 TARGET_QUANTILE = float(os.environ.get("TARGET_QUANTILE", "0.9"))
 MAX_CATEGORY_LEVELS = int(os.environ.get("MAX_CATEGORY_LEVELS", "50"))
-VALIDATION_BUCKET_CUTOFF = int(os.environ.get("VALIDATION_BUCKET_CUTOFF", "15"))
+TEST_BUCKET_CUTOFF = int(os.environ.get("TEST_BUCKET_CUTOFF", "15"))
+VALIDATION_BUCKET_CUTOFF = int(os.environ.get("VALIDATION_BUCKET_CUTOFF", "30"))
 
 KEY_COLUMNS = {"bene_id", "year", "target_year"}
-TARGET_COLUMNS = {"target_annual_claim_cost", "target_year_high_cost_threshold", "label"}
+TARGET_COLUMNS = {"target_annual_claim_cost", "target_high_cost_threshold", "target_year_high_cost_threshold", "label"}
 
 FEATURE_QUALITY_SCHEMA = T.StructType(
     [
@@ -128,26 +131,10 @@ def build_modeling_frame(df: DataFrame) -> DataFrame:
 
 
 def split_modeling_frame(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
-    target_years = [row["target_year"] for row in df.select("target_year").distinct().orderBy("target_year").collect()]
-    if len(target_years) < 2:
-        raise ValueError("Feature audit requires at least two prospective target years.")
-
-    test_target_year = target_years[-1]
-    training_pool = df.filter(F.col("target_year") < F.lit(test_target_year))
-    test_df = df.filter(F.col("target_year") == F.lit(test_target_year)).withColumn("audit_split", F.lit("test"))
-
-    split_assignments = training_pool.select("bene_id").distinct().withColumn(
-        "shared_split_bucket",
-        F.pmod(F.xxhash64("bene_id"), F.lit(100)),
-    )
-    train_ids = split_assignments.filter(F.col("shared_split_bucket") >= F.lit(VALIDATION_BUCKET_CUTOFF)).select(
-        "bene_id"
-    )
-    validation_ids = split_assignments.filter(F.col("shared_split_bucket") < F.lit(VALIDATION_BUCKET_CUTOFF)).select(
-        "bene_id"
-    )
-    train_df = training_pool.join(train_ids, "bene_id", "inner").withColumn("audit_split", F.lit("train"))
-    validation_df = training_pool.join(validation_ids, "bene_id", "inner").withColumn("audit_split", F.lit("validation"))
+    split_df = assign_shared_split(df)
+    train_df = split_df.filter(F.col("split_name") == F.lit("train")).drop("split_name").withColumn("audit_split", F.lit("train"))
+    validation_df = split_df.filter(F.col("split_name") == F.lit("validation")).drop("split_name").withColumn("audit_split", F.lit("validation"))
+    test_df = split_df.filter(F.col("split_name") == F.lit("test")).drop("split_name").withColumn("audit_split", F.lit("test"))
     return train_df, validation_df, test_df
 
 
@@ -199,7 +186,11 @@ def impossible_condition(column_name: str):
         return column.isNotNull() & (~column.isin(0, 1))
     if "share" in lower_name or lower_name.endswith("_fraction") or "percentile" in lower_name:
         return column.isNotNull() & ((column < 0) | (column > 1))
-    if lower_name.endswith("month") or lower_name.endswith("months") or "months_count" in lower_name:
+    if (
+        lower_name in {"enrollment_months_count", "prior_year_enrollment_months_count"}
+        or lower_name.endswith("_coverage_months")
+        or lower_name.endswith("_months_count")
+    ):
         return column.isNotNull() & ((column < 0) | (column > 12))
     if lower_name in {"age_years", "age_years_imputed"}:
         return column.isNotNull() & ((column < 0) | (column > 115))
@@ -478,7 +469,7 @@ def write_table(df: DataFrame, table_name: str) -> None:
 def main() -> None:
     spark.sql(f"CREATE DATABASE IF NOT EXISTS {MODEL_DATABASE}")
     train_df, validation_df, test_df = split_modeling_frame(build_modeling_frame(read_gold()))
-    audited_df = add_training_target(train_df, validation_df, test_df).cache()
+    audited_df = add_training_target(train_df, validation_df, test_df)
     columns = feature_columns(audited_df)
     reject_target_leakage(columns)
     numeric_feature_columns = numeric_columns(audited_df, columns)

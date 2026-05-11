@@ -6,6 +6,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./modeling_utils
+
+# COMMAND ----------
+
 from __future__ import annotations
 
 import math
@@ -37,8 +41,6 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from pyspark.sql.window import Window
 
-from databricks.modeling_utils import apply_threshold, compute_training_only_threshold, reject_target_leakage
-
 
 GOLD_DATABASE = os.environ.get("GOLD_DATABASE", "default")
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", GOLD_DATABASE)
@@ -52,16 +54,17 @@ MLFLOW_EXPERIMENT_PATH = os.environ.get(
     "MLFLOW_EXPERIMENT_PATH",
     "/Shared/Project2HighCostClaimClassifier_Experiment",
 )
-# Final locked comparison profile. Keep the grid small enough for Databricks
-# job-task timeouts; this is a comparison baseline, not an exhaustive RF search.
-CV_FOLDS = int(os.environ.get("RF_CV_FOLDS", "3"))
+# Keep the default grid bounded for Databricks job-task timeouts while still
+# tuning the main bagging controls recommended for the model assessment.
+CV_FOLDS = int(os.environ.get("RF_CV_FOLDS", "5"))
 RF_N_ESTIMATORS = int(os.environ.get("RF_N_ESTIMATORS", "150"))
 TARGET_QUANTILE = 0.9
 MAX_DRIVER_ROWS = int(os.environ.get("MAX_DRIVER_ROWS", "1000000"))
-SPLIT_STRATEGY = "temporal_target_year_holdout"
+SPLIT_STRATEGY = "beneficiary_hash_holdout"
 ALLOW_DELTA_MERGE_SCHEMA = os.environ.get("ALLOW_DELTA_MERGE_SCHEMA", "false").lower() == "true"
-SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v1"
-VALIDATION_BUCKET_CUTOFF = 15
+SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
+TEST_BUCKET_CUTOFF = 15
+VALIDATION_BUCKET_CUTOFF = 30
 CALIBRATION_METHOD = os.environ.get("RF_CALIBRATION_METHOD", "sigmoid")
 
 CHRONIC_FLAG_FEATURES = [
@@ -88,7 +91,6 @@ NUMERIC_FEATURES = [
     "annualized_cost_per_enrolled_month",
     "annualized_claims_per_enrolled_month",
     "age_years",
-    "age_missing_flag",
     "age_years_imputed",
     "age_over_65",
     "age_over_75",
@@ -246,24 +248,8 @@ def build_modeling_frame(df: DataFrame) -> DataFrame:
     )
 
 
-def split_gold_by_time(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
-    target_years = [row["target_year"] for row in df.select("target_year").distinct().orderBy("target_year").collect()]
-    if len(target_years) < 2:
-        raise ValueError("Temporal holdout requires at least two target years.")
-
-    test_target_year = target_years[-1]
-    training_pool = df.filter(F.col("target_year") < F.lit(test_target_year))
-    test_df = df.filter(F.col("target_year") == F.lit(test_target_year))
-
-    split_assignments = training_pool.select("bene_id").distinct().withColumn(
-        "shared_split_bucket",
-        F.pmod(F.xxhash64("bene_id"), F.lit(100)),
-    )
-    train_ids = split_assignments.filter(F.col("shared_split_bucket") >= F.lit(VALIDATION_BUCKET_CUTOFF)).select("bene_id")
-    validation_ids = split_assignments.filter(F.col("shared_split_bucket") < F.lit(VALIDATION_BUCKET_CUTOFF)).select(
-        "bene_id"
-    )
-    return training_pool.join(train_ids, "bene_id", "inner"), training_pool.join(validation_ids, "bene_id", "inner"), test_df
+def split_gold_by_beneficiary_hash_holdout(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
+    return split_train_validation_test(df)
 
 
 def add_training_target(
@@ -313,9 +299,10 @@ def build_cv_search() -> GridSearchCV:
     return GridSearchCV(
         estimator=build_pipeline(),
         param_grid={
+            "classifier__n_estimators": [50, 150, 300],
             "classifier__max_depth": [8, 12],
             "classifier__min_samples_leaf": [10, 20],
-            "classifier__max_features": ["sqrt"],
+            "classifier__max_features": ["sqrt", 0.5],
         },
         scoring="average_precision",
         cv=StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_SEED),
@@ -564,7 +551,7 @@ def main() -> None:
     source_gold_df = read_gold()
     validate_gold_frame(source_gold_df)
     gold_df = build_modeling_frame(source_gold_df)
-    train_df, validation_df, test_df = split_gold_by_time(gold_df)
+    train_df, validation_df, test_df = split_gold_by_beneficiary_hash_holdout(gold_df)
     train_df, validation_df, test_df, threshold = add_training_target(train_df, validation_df, test_df)
 
     mlflow.set_experiment(MLFLOW_EXPERIMENT_PATH)
@@ -629,7 +616,7 @@ def main() -> None:
         mlflow.log_param("final_evaluation_split", "test")
         mlflow.log_param("split_strategy", SPLIT_STRATEGY)
         mlflow.log_param("gold_table", f"{GOLD_DATABASE}.{GOLD_TABLE_NAME}")
-        mlflow.log_param("split_stratification_basis", "target_year_temporal_holdout")
+        mlflow.log_param("split_stratification_basis", "beneficiary_hash_bucket_holdout")
         mlflow.log_param("shared_split_version", SHARED_SPLIT_VERSION)
         mlflow.log_param("feature_timing_frame", "current_year_features_predict_next_year_target")
         mlflow.log_param("utilization_feature_timing", "prior_year_relative_to_target_year")
@@ -644,6 +631,7 @@ def main() -> None:
         mlflow.log_param("numeric_features", ",".join(NUMERIC_FEATURES))
         mlflow.log_param("categorical_features", ",".join(CATEGORICAL_FEATURES))
         mlflow.log_param("best_classifier_max_depth", str(cv_search.best_params_["classifier__max_depth"]))
+        mlflow.log_param("best_classifier_n_estimators", int(cv_search.best_params_["classifier__n_estimators"]))
         mlflow.log_param("best_classifier_min_samples_leaf", int(cv_search.best_params_["classifier__min_samples_leaf"]))
         mlflow.log_param("best_classifier_max_features", str(cv_search.best_params_["classifier__max_features"]))
         mlflow.log_metric("cv_best_average_precision", float(cv_search.best_score_))

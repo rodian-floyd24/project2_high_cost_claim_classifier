@@ -20,6 +20,7 @@ from pyspark.sql.window import Window
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", "default")
 COMPARISON_TABLE_NAME = "model_comparison_summary"
 FINAL_EVALUATION_SPLIT = "test"
+SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
 MODEL_GROUPS = {
     "logistic_regression": "ISLP core",
     "random_forest": "ISLP core",
@@ -61,6 +62,7 @@ def latest_run(table_name: str, model_name: str):
         selected_df
         .withColumn("model_name", F.lit(model_name))
         .withColumn("model_group", F.lit(MODEL_GROUPS[model_name]))
+        .withColumn("shared_split_version", F.lit(SHARED_SPLIT_VERSION))
         .withColumn("decision_threshold_from_tuning_split", F.coalesce(*threshold_columns))
         .withColumn("test_misclassification_error", 1 - F.col("accuracy"))
         .select(
@@ -84,6 +86,7 @@ def latest_run(table_name: str, model_name: str):
             "high_cost_threshold_train_only",
             "decision_threshold_from_tuning_split",
             "processed_at_utc",
+            "shared_split_version",
         )
     )
 
@@ -106,6 +109,7 @@ def main() -> None:
     print(
         f"comparison table written to {MODEL_DATABASE}.{COMPARISON_TABLE_NAME}; "
         f"primary model comparison is restricted to the held-out {FINAL_EVALUATION_SPLIT} split "
+        f"under split version {SHARED_SPLIT_VERSION} "
         "and ordered by PR-AUC, top-5 capture, top-10 capture, ROC-AUC, then calibration"
     )
     display(

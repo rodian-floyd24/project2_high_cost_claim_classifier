@@ -7,6 +7,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./modeling_utils
+
+# COMMAND ----------
+
 from __future__ import annotations
 
 import math
@@ -40,8 +44,6 @@ from pyspark.sql import Window
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from databricks.modeling_utils import apply_threshold, compute_training_only_threshold, reject_target_leakage
-
 
 GOLD_DATABASE = os.environ.get("GOLD_DATABASE", "default")
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", GOLD_DATABASE)
@@ -54,9 +56,10 @@ COEFFICIENT_TABLE = "logreg_selected_coefficients"
 MODEL_NAME = "logistic_regression_backward_aic_vif_screened"
 RANDOM_SEED = 42
 TARGET_QUANTILE = 0.9
-SPLIT_STRATEGY = "temporal_target_year_holdout"
-SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v1"
-VALIDATION_BUCKET_CUTOFF = 15
+SPLIT_STRATEGY = "beneficiary_hash_holdout"
+SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
+TEST_BUCKET_CUTOFF = 15
+VALIDATION_BUCKET_CUTOFF = 30
 MAX_DRIVER_ROWS = int(os.environ.get("MAX_DRIVER_ROWS", "1000000"))
 MLFLOW_EXPERIMENT_PATH = os.environ.get(
     "MLFLOW_EXPERIMENT_PATH",
@@ -140,20 +143,8 @@ def build_modeling_frame(df: DataFrame) -> DataFrame:
     )
 
 
-def split_gold_by_time(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
-    target_years = [row["target_year"] for row in df.select("target_year").distinct().orderBy("target_year").collect()]
-    if len(target_years) < 2:
-        raise ValueError("Temporal holdout requires at least two target years.")
-    test_target_year = target_years[-1]
-    training_pool = df.filter(F.col("target_year") < F.lit(test_target_year))
-    test_df = df.filter(F.col("target_year") == F.lit(test_target_year))
-    split_assignments = training_pool.select("bene_id").distinct().withColumn(
-        "shared_split_bucket",
-        F.pmod(F.xxhash64("bene_id"), F.lit(100)),
-    )
-    train_ids = split_assignments.filter(F.col("shared_split_bucket") >= F.lit(VALIDATION_BUCKET_CUTOFF)).select("bene_id")
-    validation_ids = split_assignments.filter(F.col("shared_split_bucket") < F.lit(VALIDATION_BUCKET_CUTOFF)).select("bene_id")
-    return training_pool.join(train_ids, "bene_id", "inner"), training_pool.join(validation_ids, "bene_id", "inner"), test_df
+def split_gold_by_beneficiary_hash_holdout(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
+    return split_train_validation_test(df)
 
 
 def add_training_target(train_df: DataFrame, validation_df: DataFrame, test_df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame, float]:
@@ -613,7 +604,7 @@ def main() -> None:
     mlflow.set_experiment(MLFLOW_EXPERIMENT_PATH)
 
     modeling_df = build_modeling_frame(read_gold())
-    train_df, validation_df, test_df = split_gold_by_time(modeling_df)
+    train_df, validation_df, test_df = split_gold_by_beneficiary_hash_holdout(modeling_df)
     train_df, validation_df, test_df, threshold = add_training_target(train_df, validation_df, test_df)
     train_pdf = to_pandas_features(train_df)
     validation_pdf = to_pandas_features(validation_df)

@@ -7,6 +7,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./run_selection_utils
+
+# COMMAND ----------
+
 from __future__ import annotations
 
 import os
@@ -16,14 +20,13 @@ import pandas as pd
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from databricks.run_selection_utils import filter_to_selected_test_rows, selected_test_runs
-
 
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", "default")
 PREDICTION_SCORE_TABLE = "model_prediction_scores"
 CALIBRATION_SUMMARY_TABLE = "model_calibration_summary"
 CALIBRATION_DECILE_TABLE = "model_calibration_deciles"
 RELIABILITY_TABLE = "model_reliability_curve_points"
+SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
 
 
 def selected_test_scores():
@@ -53,6 +56,7 @@ def calibration_summary_rows(model_name: str, run_id: str, pdf: pd.DataFrame) ->
             "model_name": model_name,
             "run_id": run_id,
             "split_name": "test",
+            "shared_split_version": SHARED_SPLIT_VERSION,
             "row_count": int(len(pdf)),
             "positive_rate": observed_rate,
             "mean_predicted_probability": average_predicted,
@@ -78,6 +82,7 @@ def decile_rows(model_name: str, run_id: str, pdf: pd.DataFrame) -> list[dict[st
     grouped["model_name"] = model_name
     grouped["run_id"] = run_id
     grouped["split_name"] = "test"
+    grouped["shared_split_version"] = SHARED_SPLIT_VERSION
     grouped["calibration_gap"] = grouped["mean_predicted_probability"] - grouped["observed_rate"]
     return grouped.to_dict("records")
 
@@ -105,6 +110,7 @@ def reliability_rows(model_name: str, run_id: str, pdf: pd.DataFrame) -> list[di
     grouped["model_name"] = model_name
     grouped["run_id"] = run_id
     grouped["split_name"] = "test"
+    grouped["shared_split_version"] = SHARED_SPLIT_VERSION
     grouped["bin_lower_bound"] = grouped["probability_bin"].astype(int) / 10.0
     grouped["bin_upper_bound"] = grouped["bin_lower_bound"] + 0.1
     return grouped.to_dict("records")
@@ -141,6 +147,7 @@ def main() -> None:
             T.StructField("model_name", T.StringType(), False),
             T.StructField("run_id", T.StringType(), False),
             T.StructField("split_name", T.StringType(), False),
+            T.StructField("shared_split_version", T.StringType(), False),
             T.StructField("row_count", T.LongType(), False),
             T.StructField("positive_rate", T.DoubleType(), False),
             T.StructField("mean_predicted_probability", T.DoubleType(), False),
@@ -154,6 +161,7 @@ def main() -> None:
             T.StructField("model_name", T.StringType(), False),
             T.StructField("run_id", T.StringType(), False),
             T.StructField("split_name", T.StringType(), False),
+            T.StructField("shared_split_version", T.StringType(), False),
             T.StructField("score_decile", T.LongType(), False),
             T.StructField("row_count", T.LongType(), False),
             T.StructField("observed_rate", T.DoubleType(), False),
@@ -169,6 +177,7 @@ def main() -> None:
             T.StructField("model_name", T.StringType(), False),
             T.StructField("run_id", T.StringType(), False),
             T.StructField("split_name", T.StringType(), False),
+            T.StructField("shared_split_version", T.StringType(), False),
             T.StructField("probability_bin", T.LongType(), False),
             T.StructField("row_count", T.LongType(), False),
             T.StructField("observed_rate", T.DoubleType(), False),
@@ -211,7 +220,7 @@ def main() -> None:
             marker="o",
             label=plot_df["model_name"].iloc[0],
         )
-    plt.title("Reliability Plot (Held-Out Test Set)")
+    plt.title(f"Reliability Plot (Held-Out Test Set, {SHARED_SPLIT_VERSION})")
     plt.xlabel("Mean predicted probability")
     plt.ylabel("Observed positive rate")
     plt.grid(alpha=0.3)

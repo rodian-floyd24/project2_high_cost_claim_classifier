@@ -9,8 +9,9 @@ TARGET_COLUMNS = {
 }
 
 FUTURE_FEATURE_PREFIXES = ("target_", "next_year_")
-SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v1"
-VALIDATION_BUCKET_CUTOFF = 15
+SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
+TEST_BUCKET_CUTOFF = 15
+VALIDATION_BUCKET_CUTOFF = 30
 TARGET_QUANTILE = 0.9
 
 
@@ -61,37 +62,38 @@ def build_year_t_to_t_plus_1_frame(gold_df):
     )
 
 
-def assign_temporal_hash_split(modeling_df):
+def assign_beneficiary_hash_holdout_split(modeling_df):
     from pyspark.sql import functions as F
 
-    target_years = [
-        row["target_year"]
-        for row in modeling_df.select("target_year").distinct().orderBy("target_year").collect()
-    ]
-    if len(target_years) < 2:
-        raise ValueError("Temporal holdout requires at least two target years.")
-
-    test_target_year = target_years[-1]
-    training_pool = modeling_df.filter(F.col("target_year") < F.lit(test_target_year))
-    test_df = modeling_df.filter(F.col("target_year") == F.lit(test_target_year)).withColumn(
-        "split_name", F.lit("test")
-    )
-
-    split_assignments = training_pool.select("bene_id").distinct().withColumn(
+    split_assignments = modeling_df.select("bene_id").distinct().withColumn(
         "shared_split_bucket",
         F.pmod(F.xxhash64("bene_id"), F.lit(100)),
     )
     train_ids = split_assignments.filter(F.col("shared_split_bucket") >= F.lit(VALIDATION_BUCKET_CUTOFF)).select(
         "bene_id"
     )
-    validation_ids = split_assignments.filter(F.col("shared_split_bucket") < F.lit(VALIDATION_BUCKET_CUTOFF)).select(
+    validation_ids = split_assignments.filter(
+        (F.col("shared_split_bucket") >= F.lit(TEST_BUCKET_CUTOFF))
+        & (F.col("shared_split_bucket") < F.lit(VALIDATION_BUCKET_CUTOFF))
+    ).select("bene_id")
+    test_ids = split_assignments.filter(F.col("shared_split_bucket") < F.lit(TEST_BUCKET_CUTOFF)).select(
         "bene_id"
     )
-    train_df = training_pool.join(train_ids, "bene_id", "inner").withColumn("split_name", F.lit("train"))
-    validation_df = training_pool.join(validation_ids, "bene_id", "inner").withColumn(
+    train_df = modeling_df.join(train_ids, "bene_id", "inner").withColumn("split_name", F.lit("train"))
+    validation_df = modeling_df.join(validation_ids, "bene_id", "inner").withColumn(
         "split_name", F.lit("validation")
     )
+    test_df = modeling_df.join(test_ids, "bene_id", "inner").withColumn("split_name", F.lit("test"))
     return train_df.unionByName(validation_df).unionByName(test_df)
+
+
+def split_train_validation_test(modeling_df):
+    split_df = assign_beneficiary_hash_holdout_split(modeling_df)
+    return (
+        split_df.filter("split_name = 'train'"),
+        split_df.filter("split_name = 'validation'"),
+        split_df.filter("split_name = 'test'"),
+    )
 
 
 def compute_top_decile_threshold(train_df) -> float:
@@ -131,7 +133,7 @@ def build_prospective_modeling_frame(gold_df):
 
 
 def assign_shared_split(modeling_df):
-    return assign_temporal_hash_split(modeling_df)
+    return assign_beneficiary_hash_holdout_split(modeling_df)
 
 
 def compute_training_only_threshold(train_df, quantile: float = TARGET_QUANTILE) -> float:

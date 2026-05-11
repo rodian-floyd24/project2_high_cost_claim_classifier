@@ -1,6 +1,6 @@
 # Full Project Implementation Report
 
-Generated: April 30, 2026 10:48 AM
+Generated: May 11, 2026 07:24 PM
 
 ## Executive Summary
 
@@ -44,6 +44,8 @@ EDA confirms 343,644 gold rows across 116,352 beneficiaries and calendar years 2
 
 Features are measured in beneficiary-year t. The target is measured from annual claim cost in year t+1. A beneficiary is labeled high cost when next-year annual claim cost is at or above the training-only top-decile threshold. This avoids same-year leakage and prevents validation/test target information from setting the threshold.
 
+The final comparison split is the locked v2 beneficiary-hash holdout: `xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout`. Hash buckets `<15` define test, buckets `15-29` define validation, and buckets `>=30` define train.
+
 Shared utilities in `databricks/modeling_utils.py` centralize prospective frame creation, split assignment, threshold application, and leakage rejection. `scripts/check_no_leakage.py` statically checks training feature lists for target columns.
 
 ## Feature Engineering
@@ -59,18 +61,18 @@ The supervised layer compares four model families:
 - Gradient boosting: primary operational model.
 - XGBoost: high-recall challenger.
 
-Logistic regression remains the interpretability anchor. Gradient boosting is used as the primary operational model because it produced the strongest held-out ranking performance by PR-AUC and top-k capture.
+Logistic regression remains the interpretability anchor. Gradient boosting is used as the primary operational model because it produced the strongest held-out PR-AUC with competitive top-k capture.
 
 ## Final Held-Out Test Results
 
 | Model               |   Accuracy |   Precision |   Recall |   ROC-AUC |   PR-AUC |   Top 5% Capture |   Top 10% Capture |   Top 10% Lift |
 |:--------------------|-----------:|------------:|---------:|----------:|---------:|-----------------:|------------------:|---------------:|
-| Logistic Regression |     0.8603 |      0.3432 |   0.4469 |    0.806  |   0.3634 |           0.2386 |            0.3799 |         3.7994 |
-| Gradient Boosting   |     0.8533 |      0.3329 |   0.4769 |    0.8099 |   0.3879 |           0.2511 |            0.3877 |         3.8767 |
-| Random Forest       |     0.8525 |      0.3207 |   0.4747 |    0.803  |   0.3634 |           0.2493 |            0.3819 |         3.8192 |
-| XGBoost             |     0.7131 |      0.2179 |   0.7145 |    0.7989 |   0.3617 |           0.2322 |            0.3691 |         3.6897 |
+| Gradient Boosting   |     0.874  |      0.4098 |   0.4697 |    0.8333 |   0.4653 |           0.2885 |            0.4301 |         4.3011 |
+| Logistic Regression |     0.8858 |      0.451  |   0.4304 |    0.8311 |   0.46   |           0.2896 |            0.4313 |         4.3124 |
+| Random Forest       |     0.8837 |      0.442  |   0.4341 |    0.8324 |   0.4585 |           0.2876 |            0.4276 |         4.2756 |
+| XGBoost             |     0.9077 |      0.6843 |   0.2163 |    0.8295 |   0.4476 |           0.2907 |            0.4231 |         4.2304 |
 
-Gradient boosting achieved ROC-AUC 0.8099, PR-AUC 0.3879, top-10 capture 38.77%, and top-10 lift 3.8767. The top-10 lift means the highest-risk 10% of beneficiaries contains about 3.88 times as many future high-cost cases as would be expected under random selection.
+Gradient boosting is selected as the primary operational model because it achieved the strongest held-out PR-AUC (0.4653) and competitive top-k capture. Its ROC-AUC was 0.8333, top-10 capture was 0.4301, and top-10 lift was 4.3011. Logistic regression remains a highly competitive interpretable baseline, with top-10 capture 0.4313.
 
 ## Top-K Operational Targeting
 
@@ -95,10 +97,11 @@ The model serving contract is explicit:
   "python_version": "3.11.10",
   "sklearn_version": "1.3.0",
   "feature_version": "gold_features_v2_utilization_chronic_structure",
-  "split_version": "xxhash64_bene_id_mod_100_v1",
+  "split_version": "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout",
   "target_definition": "next_year_top_decile_training_threshold",
   "artifact_source": "backend/model_artifacts/model/MLmodel",
-  "mlflow_run_id": "347f8810d18d447b954eabb5be84f49e"
+  "mlflow_run_id": "347f8810d18d447b954eabb5be84f49e",
+  "latest_databricks_refresh_run_id": "531845404459494"
 }
 ```
 
@@ -121,14 +124,14 @@ This is not causal treatment-effect learning. The CMS synthetic data do not cont
 The final verification stack includes:
 
 - `python3 -m pip install -r requirements-dev.txt`
-- `python3 -m compileall backend tests test_project.py`
+- `python3 -m compileall databricks backend tests scripts test_project.py report_artifacts`
 - `pytest`
 - `./scripts/run_local_tests.sh`
 - `python3 test_project.py`
 - Backend `/health` and `/metadata` smoke checks.
 - Streamlit frontend reachability check.
 
-Current local result: 22 passed, 1 skipped. The skipped test is the artifact reproduction check that only enforces sklearn 1.3.0 when running under the artifact's Python 3.11 line.
+Current local result: 33 passed, 1 skipped. The skipped test is the artifact reproduction check that only enforces sklearn 1.3.0 when running under the artifact's Python 3.11 line.
 
 ## How to Run
 

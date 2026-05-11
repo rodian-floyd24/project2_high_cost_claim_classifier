@@ -10,6 +10,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./run_selection_utils
+
+# COMMAND ----------
+
 from __future__ import annotations
 
 import os
@@ -18,11 +22,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from pyspark.sql import functions as F
 
-from databricks.run_selection_utils import filter_to_selected_test_rows, selected_test_runs
-
 
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", "default")
 CURVE_TABLE_NAME = "model_topk_curve_points"
+SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
 
 
 def selected_curve_rows():
@@ -43,7 +46,7 @@ def main() -> None:
     for model_name in models:
         model_df = curve_pdf[curve_pdf["model_name"] == model_name]
         plt.plot(model_df["selected_fraction"], model_df["capture_rate"], marker="o", label=model_name)
-    plt.title("Business Ranking Diagnostic: Top-K Capture Curve (Test Set)")
+    plt.title(f"Business Ranking Diagnostic: Top-K Capture Curve (Test Set, {SHARED_SPLIT_VERSION})")
     plt.xlabel("Selected fraction")
     plt.ylabel("Capture rate")
     plt.legend()
@@ -54,7 +57,7 @@ def main() -> None:
     for model_name in models:
         model_df = curve_pdf[curve_pdf["model_name"] == model_name]
         plt.plot(model_df["selected_fraction"], model_df["lift"], marker="o", label=model_name)
-    plt.title("Business Ranking Diagnostic: Top-K Lift Curve (Test Set)")
+    plt.title(f"Business Ranking Diagnostic: Top-K Lift Curve (Test Set, {SHARED_SPLIT_VERSION})")
     plt.xlabel("Selected fraction")
     plt.ylabel("Lift")
     plt.legend()

@@ -38,7 +38,7 @@ Describe what the model must not be used for.
 - Calibration gap:
 
 ## 7. Validation
-- Out-of-time validation:
+- Beneficiary-hash holdout validation:
 - Sensitivity testing:
 - Drift testing:
 - Subgroup analysis:

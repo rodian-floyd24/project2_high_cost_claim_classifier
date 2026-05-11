@@ -44,10 +44,17 @@ Features come from year `t`, the target comes from year `t + 1`, and `Q0.90` is 
 We do not choose the winner by training fit; we choose it by held-out ranking performance after training-workflow model selection, and we treat the held-out test set as the official final comparison.
 
 Official comparison standard:
-- beneficiary-level train/validation/test split
+- locked beneficiary-hash train/validation/test split
 - training-sample model selection for tunable models
 - validation sample for threshold tuning or tie-breaking
 - one final comparison on the untouched held-out test sample
+
+Canonical split contract:
+- `split_strategy`: `beneficiary_hash_holdout`
+- `shared_split_version`: `xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout`
+- `test`: beneficiary hash bucket `< 15`
+- `validation`: beneficiary hash bucket `15` through `29`
+- `train`: beneficiary hash bucket `>= 30`
 
 The final supervised comparison includes four model families:
 - logistic regression
@@ -192,6 +199,8 @@ PROJECT2_API_URL="https://your-api-url" python3 test_project.py
 ## Methodological Controls
 
 This project uses a prospective target definition. Features are measured in beneficiary-year `t`, while the high-cost label is computed from annual claim cost in year `t + 1`. The high-cost threshold is computed from the training split only to avoid leakage.
+
+The final train/validation/test split is the v2 beneficiary-hash holdout: `xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout`. It is intentionally beneficiary-level, so the same beneficiary cannot appear in multiple official comparison splits.
 
 The modeling grain is one row per beneficiary-year, keyed by `bene_id` and `year`. Duplicate beneficiary-year rows are treated as blocking data-quality failures.
 

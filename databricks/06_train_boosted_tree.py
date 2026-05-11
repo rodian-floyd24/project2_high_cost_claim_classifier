@@ -7,6 +7,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./modeling_utils
+
+# COMMAND ----------
+
 from __future__ import annotations
 
 import math
@@ -20,15 +24,14 @@ from mlflow.models import infer_signature
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import accuracy_score, average_precision_score, brier_score_loss, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import accuracy_score, average_precision_score, brier_score_loss, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from pyspark.sql.window import Window
-
-from databricks.modeling_utils import apply_threshold, compute_training_only_threshold, reject_target_leakage
 
 
 GOLD_DATABASE = os.environ.get("GOLD_DATABASE", "default")
@@ -45,11 +48,13 @@ MLFLOW_EXPERIMENT_PATH = os.environ.get(
 )
 BOOSTING_N_ESTIMATORS = 1000
 BOOSTING_LEARNING_RATE = 0.01
-TEXTBOOK_DECISION_THRESHOLD = 0.20
+BOOSTING_CV_FOLDS = int(os.environ.get("BOOSTING_CV_FOLDS", "5"))
+BOOSTING_EARLY_STOPPING_ROUNDS = int(os.environ.get("BOOSTING_EARLY_STOPPING_ROUNDS", "50"))
 TARGET_QUANTILE = 0.9
-SPLIT_STRATEGY = "temporal_target_year_holdout"
-SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v1"
-VALIDATION_BUCKET_CUTOFF = 15
+SPLIT_STRATEGY = "beneficiary_hash_holdout"
+SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
+TEST_BUCKET_CUTOFF = 15
+VALIDATION_BUCKET_CUTOFF = 30
 
 CHRONIC_FLAG_FEATURES = [
     "alzheimers_flag",
@@ -75,7 +80,6 @@ NUMERIC_FEATURES = [
     "annualized_cost_per_enrolled_month",
     "annualized_claims_per_enrolled_month",
     "age_years",
-    "age_missing_flag",
     "age_years_imputed",
     "age_over_65",
     "age_over_75",
@@ -210,24 +214,8 @@ def build_modeling_frame(df: DataFrame) -> DataFrame:
     )
 
 
-def split_gold_by_time(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
-    target_years = [row["target_year"] for row in df.select("target_year").distinct().orderBy("target_year").collect()]
-    if len(target_years) < 2:
-        raise ValueError("Temporal holdout requires at least two target years.")
-
-    test_target_year = target_years[-1]
-    training_pool = df.filter(F.col("target_year") < F.lit(test_target_year))
-    test_df = df.filter(F.col("target_year") == F.lit(test_target_year))
-
-    split_assignments = training_pool.select("bene_id").distinct().withColumn(
-        "shared_split_bucket",
-        F.pmod(F.xxhash64("bene_id"), F.lit(100)),
-    )
-    train_ids = split_assignments.filter(F.col("shared_split_bucket") >= F.lit(VALIDATION_BUCKET_CUTOFF)).select("bene_id")
-    validation_ids = split_assignments.filter(F.col("shared_split_bucket") < F.lit(VALIDATION_BUCKET_CUTOFF)).select(
-        "bene_id"
-    )
-    return training_pool.join(train_ids, "bene_id", "inner"), training_pool.join(validation_ids, "bene_id", "inner"), test_df
+def split_gold_by_beneficiary_hash_holdout(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
+    return split_train_validation_test(df)
 
 
 def add_training_target(
@@ -270,10 +258,32 @@ def build_pipeline() -> Pipeline:
                     n_estimators=BOOSTING_N_ESTIMATORS,
                     learning_rate=BOOSTING_LEARNING_RATE,
                     max_depth=3,
+                    min_samples_leaf=10,
+                    subsample=0.8,
+                    n_iter_no_change=BOOSTING_EARLY_STOPPING_ROUNDS,
+                    validation_fraction=0.15,
+                    tol=1e-4,
                     random_state=RANDOM_SEED,
                 ),
             ),
         ]
+    )
+
+
+def build_cv_search() -> GridSearchCV:
+    return GridSearchCV(
+        estimator=build_pipeline(),
+        param_grid={
+            "classifier__max_depth": [3, 5],
+            "classifier__min_samples_leaf": [10, 20],
+            "classifier__subsample": [0.8, 1.0],
+            "classifier__n_estimators": [500, 1000],
+        },
+        scoring="average_precision",
+        cv=StratifiedKFold(n_splits=BOOSTING_CV_FOLDS, shuffle=True, random_state=RANDOM_SEED),
+        n_jobs=-1,
+        refit=True,
+        return_train_score=True,
     )
 
 
@@ -297,6 +307,20 @@ def top_k_capture_and_lift(y_true, y_score, top_fraction: float) -> tuple[float,
     capture = 0.0 if total_positives == 0 else float(selected["label"].sum()) / total_positives
     lift = 0.0 if base_rate == 0 else selected_rate / base_rate
     return capture, lift
+
+
+def choose_decision_threshold(y_true, y_score) -> float:
+    score_quantiles = np.quantile(np.asarray(y_score), np.linspace(0.0, 1.0, 101))
+    candidate_thresholds = np.unique(np.concatenate([np.linspace(0.01, 0.99, 99), score_quantiles]))
+    best_threshold = 0.5
+    best_f1 = -1.0
+    for threshold in candidate_thresholds:
+        predictions = (y_score >= threshold).astype(int)
+        score = f1_score(y_true, predictions, zero_division=0)
+        if score > best_f1:
+            best_f1 = score
+            best_threshold = float(threshold)
+    return best_threshold
 
 
 def evaluate_predictions(y_true, y_score, y_pred, split_name: str) -> dict[str, float]:
@@ -385,7 +409,7 @@ def create_audit_df(
                 "top_10_lift": metric["top_10_lift"],
                 "high_cost_threshold_train_only": label_threshold,
                 "decision_threshold": decision_threshold,
-                "decision_threshold_rule": "fixed_probability_cutoff_0_20",
+                "decision_threshold_rule": "validation_f1_optimized",
                 "shared_split_version": SHARED_SPLIT_VERSION,
                 "processed_at_utc": None,
             }
@@ -488,7 +512,7 @@ def main() -> None:
     mlflow.set_registry_uri("databricks")
 
     gold_df = build_modeling_frame(read_gold())
-    train_df, validation_df, test_df = split_gold_by_time(gold_df)
+    train_df, validation_df, test_df = split_gold_by_beneficiary_hash_holdout(gold_df)
     train_df, validation_df, test_df, threshold = add_training_target(
         train_df,
         validation_df,
@@ -503,17 +527,18 @@ def main() -> None:
         validation_pdf = to_pandas_features(validation_df)
         test_pdf = to_pandas_features(test_df)
 
-        model = build_pipeline()
-        model.fit(
+        cv_search = build_cv_search()
+        cv_search.fit(
             train_pdf[NUMERIC_FEATURES + CATEGORICAL_FEATURES],
             train_pdf["label"],
         )
+        model = cv_search.best_estimator_
 
         train_scores = model.predict_proba(train_pdf[NUMERIC_FEATURES + CATEGORICAL_FEATURES])[:, 1]
         validation_scores = model.predict_proba(validation_pdf[NUMERIC_FEATURES + CATEGORICAL_FEATURES])[:, 1]
         test_scores = model.predict_proba(test_pdf[NUMERIC_FEATURES + CATEGORICAL_FEATURES])[:, 1]
 
-        decision_threshold = TEXTBOOK_DECISION_THRESHOLD
+        decision_threshold = choose_decision_threshold(validation_pdf["label"], validation_scores)
 
         train_predictions = (train_scores >= decision_threshold).astype(int)
         validation_predictions = (validation_scores >= decision_threshold).astype(int)
@@ -543,20 +568,26 @@ def main() -> None:
         mlflow.log_param("train_target_quantile", 0.9)
         mlflow.log_param("high_cost_threshold_train_only", threshold)
         mlflow.log_param("decision_threshold", decision_threshold)
-        mlflow.log_param("decision_threshold_rule", "fixed_probability_cutoff_0_20")
+        mlflow.log_param("decision_threshold_rule", "validation_f1_optimized")
+        mlflow.log_param("threshold_selection_split", "validation")
         mlflow.log_param("final_evaluation_split", "test")
         mlflow.log_param("split_strategy", SPLIT_STRATEGY)
         mlflow.log_param("shared_split_version", SHARED_SPLIT_VERSION)
         mlflow.log_param("feature_timing_frame", "current_year_features_predict_next_year_target")
         mlflow.log_param("utilization_feature_timing", "prior_year_relative_to_target_year")
-        mlflow.log_param("hyperparameter_selection", "fixed_islp_textbook_specification")
+        mlflow.log_param("hyperparameter_selection", "5_fold_cv_on_training_split_with_internal_early_stopping")
+        mlflow.log_param("cv_folds", BOOSTING_CV_FOLDS)
+        mlflow.log_param("cv_scoring_metric", "average_precision")
         mlflow.log_param("target_definition", "predict_next_year_high_cost_within_target_year_top_decile")
         mlflow.log_param("numeric_features", ",".join(NUMERIC_FEATURES))
         mlflow.log_param("categorical_features", ",".join(CATEGORICAL_FEATURES))
-        mlflow.log_param("classifier_n_estimators", BOOSTING_N_ESTIMATORS)
         mlflow.log_param("classifier_learning_rate", BOOSTING_LEARNING_RATE)
-        mlflow.log_param("classifier_max_depth", 3)
-        mlflow.log_param("classifier_subsample", 1.0)
+        mlflow.log_param("classifier_early_stopping_rounds", BOOSTING_EARLY_STOPPING_ROUNDS)
+        mlflow.log_param("best_classifier_n_estimators", int(cv_search.best_params_["classifier__n_estimators"]))
+        mlflow.log_param("best_classifier_max_depth", int(cv_search.best_params_["classifier__max_depth"]))
+        mlflow.log_param("best_classifier_min_samples_leaf", int(cv_search.best_params_["classifier__min_samples_leaf"]))
+        mlflow.log_param("best_classifier_subsample", float(cv_search.best_params_["classifier__subsample"]))
+        mlflow.log_metric("cv_best_average_precision", float(cv_search.best_score_))
 
         for metric in metrics:
             prefix = metric["split_name"]
@@ -611,8 +642,8 @@ def main() -> None:
             "boosting_spec="
             f"n_estimators={BOOSTING_N_ESTIMATORS}, "
             f"learning_rate={BOOSTING_LEARNING_RATE}, "
-            "max_depth=3, "
-            f"decision_threshold={TEXTBOOK_DECISION_THRESHOLD}"
+            f"best_params={cv_search.best_params_}, "
+            f"decision_threshold={decision_threshold}"
         )
         print(f"training audit written to {MODEL_DATABASE}.{TRAINING_AUDIT_TABLE}")
         print(f"mlflow_run_id={run.info.run_id}")

@@ -140,6 +140,27 @@ def format_results_table() -> pd.DataFrame:
     return df
 
 
+def model_metric_row(model_name: str) -> pd.Series:
+    df = pd.read_csv(OUT_DIR / "final_results_table_test.csv")
+    matches = df[df["model_name"] == model_name]
+    if matches.empty:
+        raise ValueError(f"Missing model results for {model_name}")
+    return matches.iloc[0]
+
+
+def model_selection_sentence() -> str:
+    gradient = model_metric_row("gradient_boosting")
+    logistic = model_metric_row("logistic_regression")
+    return (
+        "Gradient boosting is selected as the primary operational model because it achieved "
+        f"the strongest held-out PR-AUC ({gradient['area_under_pr']:.4f}) and competitive top-k capture. "
+        f"Its ROC-AUC was {gradient['area_under_roc']:.4f}, top-10 capture was "
+        f"{gradient['top_10_capture_rate']:.4f}, and top-10 lift was {gradient['top_10_lift']:.4f}. "
+        "Logistic regression remains a highly competitive interpretable baseline, with top-10 capture "
+        f"{logistic['top_10_capture_rate']:.4f}."
+    )
+
+
 def data_inventory_summary() -> pd.DataFrame:
     df = pd.read_csv(OUT_DIR / "project_data_inventory.csv")
     summary = df[["entity", "logical_name", "actual_row_count", "silver_table"]].copy()
@@ -152,6 +173,7 @@ def markdown_report() -> str:
     model_meta = json.loads((ROOT / "backend/model_artifacts/model_metadata.json").read_text())
     results = format_results_table().to_markdown(index=False)
     inventory = data_inventory_summary().to_markdown(index=False)
+    model_selection = model_selection_sentence()
 
     return f"""# Full Project Implementation Report
 
@@ -190,6 +212,8 @@ EDA confirms 343,644 gold rows across 116,352 beneficiaries and calendar years 2
 
 Features are measured in beneficiary-year t. The target is measured from annual claim cost in year t+1. A beneficiary is labeled high cost when next-year annual claim cost is at or above the training-only top-decile threshold. This avoids same-year leakage and prevents validation/test target information from setting the threshold.
 
+The final comparison split is the locked v2 beneficiary-hash holdout: `xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout`. Hash buckets `<15` define test, buckets `15-29` define validation, and buckets `>=30` define train.
+
 Shared utilities in `databricks/modeling_utils.py` centralize prospective frame creation, split assignment, threshold application, and leakage rejection. `scripts/check_no_leakage.py` statically checks training feature lists for target columns.
 
 ## Feature Engineering
@@ -205,13 +229,13 @@ The supervised layer compares four model families:
 - Gradient boosting: primary operational model.
 - XGBoost: high-recall challenger.
 
-Logistic regression remains the interpretability anchor. Gradient boosting is used as the primary operational model because it produced the strongest held-out ranking performance by PR-AUC and top-k capture.
+Logistic regression remains the interpretability anchor. Gradient boosting is used as the primary operational model because it produced the strongest held-out PR-AUC with competitive top-k capture.
 
 ## Final Held-Out Test Results
 
 {results}
 
-Gradient boosting achieved ROC-AUC 0.8099, PR-AUC 0.3879, top-10 capture 38.77%, and top-10 lift 3.8767. The top-10 lift means the highest-risk 10% of beneficiaries contains about 3.88 times as many future high-cost cases as would be expected under random selection.
+{model_selection}
 
 ## Top-K Operational Targeting
 
@@ -252,14 +276,14 @@ This is not causal treatment-effect learning. The CMS synthetic data do not cont
 The final verification stack includes:
 
 - `python3 -m pip install -r requirements-dev.txt`
-- `python3 -m compileall backend tests test_project.py`
+- `python3 -m compileall databricks backend tests scripts test_project.py report_artifacts`
 - `pytest`
 - `./scripts/run_local_tests.sh`
 - `python3 test_project.py`
 - Backend `/health` and `/metadata` smoke checks.
 - Streamlit frontend reachability check.
 
-Current local result: 22 passed, 1 skipped. The skipped test is the artifact reproduction check that only enforces sklearn 1.3.0 when running under the artifact's Python 3.11 line.
+Current local result: 33 passed, 1 skipped. The skipped test is the artifact reproduction check that only enforces sklearn 1.3.0 when running under the artifact's Python 3.11 line.
 
 ## How to Run
 
@@ -291,6 +315,8 @@ def make_pdf() -> None:
     results = format_results_table()
     inventory = data_inventory_summary()
     model_meta = json.loads((ROOT / "backend/model_artifacts/model_metadata.json").read_text())
+    gradient = model_metric_row("gradient_boosting")
+    logistic = model_metric_row("logistic_regression")
 
     with PdfPages(PDF_PATH) as pdf:
         add_page(
@@ -368,6 +394,8 @@ def make_pdf() -> None:
             "7. Prospective Target and Leakage Controls",
             [
                 "Features are measured in beneficiary-year t. The high-cost label is computed from annual claim cost in year t+1.",
+                "The final comparison split is the locked v2 beneficiary-hash holdout: xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout.",
+                "Hash buckets <15 define test, buckets 15-29 define validation, and buckets >=30 define train.",
                 "The high-cost threshold is computed from the training split only. Validation and test costs do not set the threshold.",
                 "The leakage rule blocks target_annual_claim_cost, target threshold fields, label columns, and next-year features from model input lists.",
                 "Shared utilities in databricks/modeling_utils.py centralize the modeling frame, split assignment, threshold application, and leakage validation.",
@@ -378,7 +406,7 @@ def make_pdf() -> None:
             pdf,
             "8. Final Held-Out Test Results",
             results,
-            "Gradient boosting is selected for operational ranking because it has the strongest held-out PR-AUC and top-k capture profile.",
+            "Gradient boosting is selected for operational ranking because it has the strongest held-out PR-AUC and a competitive top-k capture profile.",
         )
         for title, path, caption in [
             (
@@ -399,10 +427,18 @@ def make_pdf() -> None:
             "11. Model Selection Interpretation",
             [
                 "- Logistic regression remains the interpretable statistical baseline.",
-                "- Gradient boosting achieved ROC-AUC 0.8099, PR-AUC 0.3879, and top-10 capture 38.77% on the held-out test set.",
+                (
+                    f"- Gradient boosting achieved ROC-AUC {gradient['area_under_roc']:.4f}, "
+                    f"PR-AUC {gradient['area_under_pr']:.4f}, and top-10 capture "
+                    f"{gradient['top_10_capture_rate']:.4f} on the held-out test set."
+                ),
                 "- Random forest was competitive on top-k capture but weaker on discrimination.",
                 "- XGBoost achieved the highest recall but lower precision, lower accuracy, and weaker top-k balance, so it is a high-sensitivity alternative rather than the primary balanced model.",
-                "- Gradient boosting has a top-10% lift of 3.8767, meaning the highest-risk 10% of beneficiaries contains about 3.88 times as many future high-cost cases as would be expected under random selection.",
+                (
+                    f"- Gradient boosting has a top-10% lift of {gradient['top_10_lift']:.4f}; "
+                    "logistic regression remains a highly competitive interpretable baseline "
+                    f"with top-10 capture {logistic['top_10_capture_rate']:.4f}."
+                ),
                 "- Accuracy is reported but is not the primary selection criterion because the positive class is intentionally rare.",
             ],
         )
@@ -460,8 +496,8 @@ def make_pdf() -> None:
             [
                 "The final local verification sequence was run after submission-control edits.",
                 "- python3 -m pip install -r requirements-dev.txt: completed with requirements already satisfied.",
-                "- python3 -m compileall backend tests test_project.py: passed.",
-                "- pytest: 22 passed, 1 skipped.",
+                "- python3 -m compileall databricks backend tests scripts test_project.py report_artifacts: passed.",
+                "- pytest: 33 passed, 1 skipped.",
                 "- ./scripts/run_local_tests.sh: passed and leakage check passed.",
                 "- python3 test_project.py: PASS.",
                 "- Backend /health and /metadata smoke checks: passed.",
@@ -481,7 +517,7 @@ def make_pdf() -> None:
                 "./run_backend.sh",
                 "./run_frontend.sh",
                 "## Tests",
-                "python3 -m compileall backend tests test_project.py",
+                "python3 -m compileall databricks backend tests scripts test_project.py report_artifacts",
                 "pytest",
                 "./scripts/run_local_tests.sh",
                 "python3 test_project.py",

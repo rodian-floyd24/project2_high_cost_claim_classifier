@@ -4,8 +4,9 @@
   "python_version": "3.11.10",
   "sklearn_version": "1.3.0",
   "feature_version": "gold_features_v2_utilization_chronic_structure",
-  "split_version": "xxhash64_bene_id_mod_100_v1",
+  "split_version": "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout",
   "target_definition": "next_year_top_decile_training_threshold",
   "artifact_source": "backend/model_artifacts/model/MLmodel",
-  "mlflow_run_id": "347f8810d18d447b954eabb5be84f49e"
+  "mlflow_run_id": "347f8810d18d447b954eabb5be84f49e",
+  "latest_databricks_refresh_run_id": "531845404459494"
 }

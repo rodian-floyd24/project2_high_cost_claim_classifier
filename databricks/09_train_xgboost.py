@@ -10,6 +10,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./modeling_utils
+
+# COMMAND ----------
+
 from __future__ import annotations
 
 import math
@@ -23,7 +27,8 @@ from mlflow.models import infer_signature
 from sklearn.base import clone
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.compose import ColumnTransformer
-from sklearn.metrics import accuracy_score, average_precision_score, brier_score_loss, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import accuracy_score, average_precision_score, brier_score_loss, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.model_selection import ParameterGrid
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from pyspark.sql import DataFrame
@@ -31,8 +36,6 @@ from pyspark.sql import Window
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from xgboost import XGBClassifier
-
-from databricks.modeling_utils import apply_threshold, compute_training_only_threshold, reject_target_leakage
 
 
 GOLD_DATABASE = os.environ.get("GOLD_DATABASE", "default")
@@ -49,10 +52,12 @@ MAX_PANDAS_ROWS_PER_SPLIT = int(os.environ.get("MAX_PANDAS_ROWS_PER_SPLIT", "500
 EARLY_STOPPING_ROUNDS = 50
 FINAL_N_ESTIMATORS_UPPER_BOUND = 1000
 FIXED_DECISION_THRESHOLD = 0.5
+XGBOOST_ENABLE_HYPERPARAMETER_SEARCH = os.environ.get("XGBOOST_ENABLE_HYPERPARAMETER_SEARCH", "false").lower() == "true"
 TARGET_QUANTILE = 0.9
-SPLIT_STRATEGY = "temporal_target_year_holdout"
-SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v1"
-VALIDATION_BUCKET_CUTOFF = 15
+SPLIT_STRATEGY = "beneficiary_hash_holdout"
+SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
+TEST_BUCKET_CUTOFF = 15
+VALIDATION_BUCKET_CUTOFF = 30
 CALIBRATION_METHOD = os.environ.get("XGBOOST_CALIBRATION_METHOD", "isotonic")
 
 PAPER_ALIGNED_XGBOOST_PARAMS = {
@@ -70,6 +75,16 @@ PAPER_ALIGNED_XGBOOST_PARAMS = {
     "gamma": 0.0,
     "reg_lambda": 1.0,
     "reg_alpha": 0.0,
+}
+
+XGBOOST_TUNING_GRID = {
+    "max_depth": [3, 4],
+    "min_child_weight": [3, 5],
+    "gamma": [0.0, 1.0],
+    "subsample": [0.8],
+    "colsample_bytree": [0.8],
+    "reg_alpha": [0.0, 0.1],
+    "reg_lambda": [1.0, 5.0],
 }
 
 CHRONIC_FLAG_FEATURES = [
@@ -96,7 +111,6 @@ NUMERIC_FEATURES = [
     "annualized_cost_per_enrolled_month",
     "annualized_claims_per_enrolled_month",
     "age_years",
-    "age_missing_flag",
     "age_years_imputed",
     "age_over_65",
     "age_over_75",
@@ -253,24 +267,8 @@ def build_modeling_frame(df: DataFrame) -> DataFrame:
     )
 
 
-def split_gold_by_time(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
-    target_years = [row["target_year"] for row in df.select("target_year").distinct().orderBy("target_year").collect()]
-    if len(target_years) < 2:
-        raise ValueError("Temporal holdout requires at least two target years.")
-
-    test_target_year = target_years[-1]
-    training_pool = df.filter(F.col("target_year") < F.lit(test_target_year))
-    test_df = df.filter(F.col("target_year") == F.lit(test_target_year))
-    split_assignments = training_pool.select("bene_id").distinct().withColumn(
-        "shared_split_bucket",
-        F.pmod(F.xxhash64("bene_id"), F.lit(100)),
-    )
-    train_ids = split_assignments.filter(F.col("shared_split_bucket") >= F.lit(VALIDATION_BUCKET_CUTOFF)).select("bene_id")
-    validation_ids = split_assignments.filter(F.col("shared_split_bucket") < F.lit(VALIDATION_BUCKET_CUTOFF)).select(
-        "bene_id"
-    )
-    train_df = training_pool.join(train_ids, "bene_id", "inner")
-    validation_df = training_pool.join(validation_ids, "bene_id", "inner")
+def split_gold_by_beneficiary_hash_holdout(df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
+    train_df, validation_df, test_df = split_train_validation_test(df)
     require_nonempty_split(train_df, "train")
     require_nonempty_split(validation_df, "validation")
     require_nonempty_split(test_df, "test")
@@ -313,13 +311,15 @@ def fit_final_pipeline_with_early_stopping(
     y_train: pd.Series,
     x_validation: pd.DataFrame,
     y_validation: pd.Series,
+    xgboost_params: dict[str, object] | None = None,
 ) -> Pipeline:
     preprocessor = clone(build_preprocessor())
     x_train_transformed = preprocessor.fit_transform(x_train)
     x_validation_transformed = preprocessor.transform(x_validation)
 
+    classifier_params = {**PAPER_ALIGNED_XGBOOST_PARAMS, **(xgboost_params or {})}
     final_classifier = XGBClassifier(
-        **PAPER_ALIGNED_XGBOOST_PARAMS,
+        **classifier_params,
         scale_pos_weight=scale_pos_weight,
         random_state=RANDOM_SEED,
         n_jobs=-1,
@@ -339,6 +339,35 @@ def fit_final_pipeline_with_early_stopping(
             ("classifier", final_classifier),
         ]
     )
+
+
+def select_xgboost_params(
+    scale_pos_weight: float,
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    x_validation: pd.DataFrame,
+    y_validation: pd.Series,
+) -> tuple[dict[str, object], float | None]:
+    if not XGBOOST_ENABLE_HYPERPARAMETER_SEARCH:
+        return {}, None
+
+    best_params: dict[str, object] = {}
+    best_score = -1.0
+    for candidate_params in ParameterGrid(XGBOOST_TUNING_GRID):
+        candidate_pipeline = fit_final_pipeline_with_early_stopping(
+            scale_pos_weight=scale_pos_weight,
+            x_train=x_train,
+            y_train=y_train,
+            x_validation=x_validation,
+            y_validation=y_validation,
+            xgboost_params=dict(candidate_params),
+        )
+        validation_scores = candidate_pipeline.predict_proba(x_validation)[:, 1]
+        validation_ap = float(average_precision_score(y_validation, validation_scores))
+        if validation_ap > best_score:
+            best_score = validation_ap
+            best_params = dict(candidate_params)
+    return best_params, best_score
 
 
 def calibrate_prefit_model(model: Pipeline, x_calibration: pd.DataFrame, y_calibration: pd.Series) -> CalibratedClassifierCV:
@@ -394,6 +423,20 @@ def top_k_capture_and_lift(y_true, y_score, top_fraction: float) -> tuple[float,
     capture = 0.0 if total_positives == 0 else float(selected["label"].sum()) / total_positives
     lift = 0.0 if base_rate == 0 else selected_rate / base_rate
     return capture, lift
+
+
+def choose_decision_threshold(y_true, y_score) -> float:
+    score_quantiles = np.quantile(np.asarray(y_score), np.linspace(0.0, 1.0, 101))
+    candidate_thresholds = np.unique(np.concatenate([np.linspace(0.01, 0.99, 99), score_quantiles]))
+    best_threshold = FIXED_DECISION_THRESHOLD
+    best_f1 = -1.0
+    for threshold in candidate_thresholds:
+        predictions = (y_score >= threshold).astype(int)
+        score = f1_score(y_true, predictions, zero_division=0)
+        if score > best_f1:
+            best_f1 = score
+            best_threshold = float(threshold)
+    return best_threshold
 
 
 def evaluate_predictions(y_true, y_score, y_pred, split_name: str) -> dict[str, float | int | str | None]:
@@ -570,7 +613,7 @@ def main() -> None:
     modeling_df = build_modeling_frame(gold_df)
     validate_required_columns(modeling_df, REQUIRED_MODELING_COLUMNS, "modeling_df")
     validate_unique_keys(modeling_df, ["bene_id", "year", "target_year"], "modeling_df")
-    train_df, validation_df, test_df = split_gold_by_time(modeling_df)
+    train_df, validation_df, test_df = split_gold_by_beneficiary_hash_holdout(modeling_df)
     train_df, validation_df, test_df, threshold = add_training_target(train_df, validation_df, test_df)
 
     train_pdf = to_pandas_features(train_df)
@@ -591,17 +634,25 @@ def main() -> None:
     scale_pos_weight = compute_scale_pos_weight(y_train)
 
     with mlflow.start_run(run_name="xgboost") as run:
-        pipeline = fit_final_pipeline_with_early_stopping(
+        selected_xgboost_params, validation_search_ap = select_xgboost_params(
             scale_pos_weight=scale_pos_weight,
             x_train=x_train,
             y_train=y_train,
             x_validation=x_validation,
             y_validation=y_validation,
         )
+        pipeline = fit_final_pipeline_with_early_stopping(
+            scale_pos_weight=scale_pos_weight,
+            x_train=x_train,
+            y_train=y_train,
+            x_validation=x_validation,
+            y_validation=y_validation,
+            xgboost_params=selected_xgboost_params,
+        )
         calibrated_pipeline = calibrate_prefit_model(pipeline, x_validation, y_validation)
 
         validation_scores = calibrated_pipeline.predict_proba(x_validation)[:, 1]
-        decision_threshold = FIXED_DECISION_THRESHOLD
+        decision_threshold = choose_decision_threshold(y_validation, validation_scores)
 
         train_scores = calibrated_pipeline.predict_proba(x_train)[:, 1]
         test_scores = calibrated_pipeline.predict_proba(x_test)[:, 1]
@@ -632,17 +683,24 @@ def main() -> None:
         mlflow.log_param("train_target_quantile", 0.9)
         mlflow.log_param("high_cost_threshold_train_only", threshold)
         mlflow.log_param("decision_threshold", decision_threshold)
-        mlflow.log_param("decision_threshold_policy", "fixed_0_5_probability_cutoff")
-        mlflow.log_param("threshold_selection_split", "none")
+        mlflow.log_param("decision_threshold_policy", "validation_f1_optimized")
+        mlflow.log_param("threshold_selection_split", "validation")
         mlflow.log_param("final_evaluation_split", "test")
         mlflow.log_param("split_strategy", SPLIT_STRATEGY)
-        mlflow.log_param("split_stratification", "target_year_temporal_holdout")
+        mlflow.log_param("split_stratification", "beneficiary_hash_bucket_holdout")
         mlflow.log_param("shared_split_version", SHARED_SPLIT_VERSION)
         mlflow.log_param("gold_table", f"{GOLD_DATABASE}.{GOLD_TABLE_NAME}")
         mlflow.log_param("feature_timing_frame", "current_year_features_predict_next_year_target")
         mlflow.log_param("utilization_feature_timing", "prior_year_relative_to_target_year")
         mlflow.log_param("max_pandas_rows_per_split", MAX_PANDAS_ROWS_PER_SPLIT)
-        mlflow.log_param("hyperparameter_selection", "fixed_paper_aligned_baseline_plus_validation_early_stopping")
+        mlflow.log_param(
+            "hyperparameter_selection",
+            (
+                "validation_average_precision_grid_search_plus_early_stopping"
+                if XGBOOST_ENABLE_HYPERPARAMETER_SEARCH
+                else "fixed_paper_aligned_baseline_plus_validation_early_stopping"
+            ),
+        )
         mlflow.log_param("primary_training_metric", "logloss")
         mlflow.log_param("secondary_reporting_metrics", "roc_auc,average_precision,top_k_capture,lift")
         mlflow.log_param("target_definition", "predict_next_year_high_cost_within_target_year_top_decile")
@@ -659,6 +717,9 @@ def main() -> None:
         )
         mlflow.log_param("calibration_split", "validation")
         mlflow.log_param("early_stopping_rounds", EARLY_STOPPING_ROUNDS)
+        mlflow.log_param("xgboost_hyperparameter_search_enabled", XGBOOST_ENABLE_HYPERPARAMETER_SEARCH)
+        if validation_search_ap is not None:
+            mlflow.log_metric("validation_search_best_average_precision", validation_search_ap)
         mlflow.log_param("tree_method_interpretation", "hist_approximate_split_finding_for_scale")
         mlflow.log_param("best_classifier_n_estimators", int(pipeline.named_steps["classifier"].best_iteration + 1))
         mlflow.log_param(

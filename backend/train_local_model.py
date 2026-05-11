@@ -20,7 +20,10 @@ from sklearn.preprocessing import OneHotEncoder
 
 RANDOM_SEED = 42
 TARGET_QUANTILE = 0.9
-SPLIT_STRATEGY = "temporal_target_year_holdout"
+SPLIT_STRATEGY = "beneficiary_hash_holdout"
+SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
+TEST_BUCKET_CUTOFF = 15
+VALIDATION_BUCKET_CUTOFF = 30
 MODEL_OUTPUT_DIR = Path(__file__).resolve().parent / "local_model"
 TOPK_CURVE_PATH = MODEL_OUTPUT_DIR / "topk_curve_test.csv"
 MODEL_PATH = MODEL_OUTPUT_DIR / "gradient_boosting_pipeline.joblib"
@@ -261,26 +264,16 @@ def build_modeling_frame(df: pd.DataFrame) -> pd.DataFrame:
     return modeled
 
 
-def split_by_time(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    target_years = sorted(df["target_year"].dropna().unique())
-    if len(target_years) < 2:
-        raise ValueError("Temporal holdout requires at least two target years.")
-
-    test_target_year = target_years[-1]
-    training_pool = df[df["target_year"] < test_target_year].copy()
-    test_df = df[df["target_year"] == test_target_year].copy()
-
-    bene_ids = training_pool["bene_id"].drop_duplicates().to_numpy()
-    rng = np.random.default_rng(RANDOM_SEED)
-    rng.shuffle(bene_ids)
-    train_end = int(len(bene_ids) * 0.85)
-    train_ids = set(bene_ids[:train_end])
-    validation_ids = set(bene_ids[train_end:])
-    return (
-        training_pool[training_pool["bene_id"].isin(train_ids)].copy(),
-        training_pool[training_pool["bene_id"].isin(validation_ids)].copy(),
-        test_df,
-    )
+def split_by_beneficiary_hash_holdout(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    bucket = pd.util.hash_pandas_object(df["bene_id"].astype(str), index=False).mod(100)
+    split_df = df.assign(shared_split_bucket=bucket.astype(int))
+    train_df = split_df[split_df["shared_split_bucket"] >= VALIDATION_BUCKET_CUTOFF].copy()
+    validation_df = split_df[
+        (split_df["shared_split_bucket"] >= TEST_BUCKET_CUTOFF)
+        & (split_df["shared_split_bucket"] < VALIDATION_BUCKET_CUTOFF)
+    ].copy()
+    test_df = split_df[split_df["shared_split_bucket"] < TEST_BUCKET_CUTOFF].copy()
+    return train_df, validation_df, test_df
 
 
 def add_training_target(
@@ -368,7 +361,7 @@ def main() -> None:
 
     gold_df = download_gold_table()
     modeled = build_modeling_frame(gold_df)
-    train_df, validation_df, test_df = split_by_time(modeled)
+    train_df, validation_df, test_df = split_by_beneficiary_hash_holdout(modeled)
     train_df, validation_df, test_df, label_threshold = add_training_target(train_df, validation_df, test_df)
 
     pipeline = build_pipeline()
@@ -395,6 +388,7 @@ def main() -> None:
         "model_name": "gradient_boosting_local",
         "training_source": "default.gold_beneficiary_year_features",
         "split_strategy": SPLIT_STRATEGY,
+        "split_version": SPLIT_VERSION,
         "feature_timing_frame": "current_year_features_predict_next_year_target",
         "utilization_feature_timing": "prior_year_relative_to_target_year",
         "target_definition": "predict_next_year_high_cost_within_target_year_top_decile",
