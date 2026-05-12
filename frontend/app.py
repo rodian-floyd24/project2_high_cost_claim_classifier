@@ -347,57 +347,84 @@ def load_css() -> None:
         }
         .result-strip {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.8rem;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 0.6rem;
             margin: 1rem 0 1.2rem 0;
         }
         .result-strip > div {
             background: white;
             border: 1px solid var(--line);
-            border-radius: 16px;
-            padding: 1rem;
+            border-radius: 12px;
+            padding: 0.8rem 0.6rem;
+            text-align: center;
         }
         .result-label {
             display: block;
             color: var(--muted);
-            font-size: 0.78rem;
+            font-size: 0.7rem;
             font-weight: 750;
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.2rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .result-strip strong {
             color: var(--ink);
             display: block;
-            font-size: 1.35rem;
+            font-size: 1.25rem;
             line-height: 1.2;
         }
         .recommendation-card {
             background: #e9f7ef;
             border: 1px solid #bfe7cd;
             border-left: 6px solid #16803c;
-            border-radius: 18px;
+            border-radius: 12px;
             color: #0f5132;
-            padding: 1.1rem 1.2rem;
+            padding: 0.8rem 1rem;
         }
         .recommendation-label {
-            font-size: 0.75rem;
-            font-weight: 850;
+            font-size: 0.7rem;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 0.35rem;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.2rem;
         }
         .recommendation-title {
-            font-size: 1.25rem;
+            font-size: 1.15rem;
             font-weight: 850;
-            line-height: 1.25;
-            margin-bottom: 0.5rem;
+            line-height: 1.2;
+            margin-bottom: 0.3rem;
         }
         .recommendation-value {
-            font-weight: 800;
-            margin-bottom: 0.6rem;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
         }
         .recommendation-card p {
-            line-height: 1.5;
+            font-size: 0.85rem;
+            line-height: 1.4;
             margin: 0;
+            color: #146c43;
+        }
+        .state-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #64748b;
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            color: #334155;
+            height: 100%;
+            font-size: 0.9rem;
+        }
+        .state-card strong {
+            color: #0f172a;
+            font-size: 1rem;
+        }
+        .state-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.8rem;
+            margin-bottom: 1.5rem;
         }
         .footer {
             border-top: 1px solid var(--line);
@@ -430,7 +457,7 @@ def load_css() -> None:
             .subtitle {
                 font-size: 1.04rem;
             }
-            .metric-grid, .stack-list, .result-strip {
+            .metric-grid, .stack-list, .result-strip, .state-grid {
                 grid-template-columns: 1fr;
             }
             .app-module {
@@ -683,7 +710,7 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
             color_discrete_sequence=["#1f4e79", "#2457b8", "#4f7cac", "#8aa6c1"],
             title=f"Current-year cost mix (${annual_cost_proxy:,.0f} total)",
         )
-        cost_fig.update_layout(height=320, showlegend=False, margin=dict(l=95, r=20, t=50, b=35), paper_bgcolor="rgba(0,0,0,0)")
+        cost_fig.update_layout(height=350, showlegend=False, margin=dict(l=140, r=20, t=50, b=35), paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(cost_fig, use_container_width=True)
 
     current_state = recommendation["current_state"] if recommendation is not None else None
@@ -692,17 +719,23 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
 
     if current_state is not None:
         st.markdown("#### Current MDP state")
-        state_col_a, state_col_b = st.columns(2)
-        state_col_a.info(
-            f"{current_state['label']}\n\n"
-            f"State ID: {current_state['state_id']}\n\n"
-            f"Prior intervention: {INTERVENTION_OPTIONS[current_state['prior_intervention_status']]}"
-        )
-        state_col_b.info(
-            f"Risk tier: {current_state['risk_tier']}\n\n"
-            f"Chronic burden: {current_state['chronic_burden']}\n\n"
-            f"Utilization intensity: {current_state['utilization_intensity']}\n\n"
-            f"Baseline risk: {current_state['baseline_risk_probability']:.1%}"
+        st.markdown(
+            f"""
+            <div class="state-grid">
+                <div class="state-card">
+                    <strong>{current_state['label']}</strong><br><br>
+                    State ID: {current_state['state_id']}<br>
+                    Prior intervention: {INTERVENTION_OPTIONS[current_state['prior_intervention_status']]}
+                </div>
+                <div class="state-card">
+                    Risk tier: {current_state['risk_tier']}<br>
+                    Chronic burden: {current_state['chronic_burden']}<br>
+                    Utilization intensity: {current_state['utilization_intensity']}<br>
+                    Baseline risk: {current_state['baseline_risk_probability']:.1%}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
     if recommendation is not None:
@@ -735,9 +768,9 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
         )
         q_fig.update_traces(textposition="outside", cliponaxis=False)
         q_fig.update_layout(
-            height=380,
+            height=400,
             showlegend=False,
-            margin=dict(l=120, r=50, t=50, b=45),
+            margin=dict(l=180, r=50, t=50, b=45),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="#ffffff",
             xaxis_title="Estimated long-run value",
