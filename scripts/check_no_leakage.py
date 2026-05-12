@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import ast
 import re
 import sys
 from pathlib import Path
@@ -11,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from databricks.modeling_utils import reject_target_leakage
+from shared.feature_contract import MODEL_FEATURE_ORDER
 
 TRAINING_SCRIPTS = [
     ROOT / "databricks" / "04_train_logreg.py",
@@ -63,21 +63,8 @@ REQUIRED_THRESHOLD_HELPERS = [
 ]
 
 
-def extract_list_assignment(path: Path, name: str) -> list[str]:
-    tree = ast.parse(path.read_text())
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
-            values: list[str] = []
-            for item in getattr(node.value, "elts", []):
-                if isinstance(item, ast.Constant) and isinstance(item.value, str):
-                    values.append(item.value)
-            return values
-    return []
-
-
 def validate_feature_contract(path: Path) -> None:
-    features = extract_list_assignment(path, "NUMERIC_FEATURES") + extract_list_assignment(path, "CATEGORICAL_FEATURES")
-    reject_target_leakage(features)
+    reject_target_leakage(MODEL_FEATURE_ORDER)
 
 
 def validate_threshold_contract(path: Path) -> None:

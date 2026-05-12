@@ -13,13 +13,15 @@ import os
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
+from shared.feature_contract import FEATURE_VERSION
+
 
 GOLD_DATABASE = os.environ.get("GOLD_DATABASE", "default")
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", GOLD_DATABASE)
 GOLD_TABLE_NAME = "gold_beneficiary_year_features"
 CONSISTENCY_AUDIT_TABLE = "gold_pipeline_consistency_audit"
-EXPECTED_GOLD_FEATURE_VERSION = "gold_features_v2_utilization_chronic_structure"
-SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v1"
+EXPECTED_GOLD_FEATURE_VERSION = FEATURE_VERSION
+SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
 
 TRAINING_AUDIT_TABLES = {
     "logistic_regression": "logreg_training_audit",

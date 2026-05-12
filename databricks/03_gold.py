@@ -17,11 +17,13 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from pyspark.sql.window import Window
 
+from shared.feature_contract import FEATURE_VERSION, CHRONIC_FLAG_FEATURES
+
 
 SILVER_DATABASE = os.environ.get("SILVER_DATABASE", "default")
 GOLD_DATABASE = os.environ.get("GOLD_DATABASE", SILVER_DATABASE)
 GOLD_TABLE_NAME = "gold_beneficiary_year_features"
-GOLD_FEATURE_VERSION = "gold_features_v2_utilization_chronic_structure"
+GOLD_FEATURE_VERSION = FEATURE_VERSION
 AUDIT_TABLE_NAME = "gold_audit_summary"
 AUDIT_STATUS_SUCCEEDED = "succeeded"
 AUDIT_STATUS_FAILED_QC = "failed_qc"
@@ -36,19 +38,7 @@ SILVER_TABLES = {
     "pde": "silver_pde",
 }
 
-CHRONIC_FLAG_COLUMNS = [
-    "alzheimers_flag",
-    "chf_flag",
-    "chronic_kidney_disease_flag",
-    "cancer_flag",
-    "copd_flag",
-    "depression_flag",
-    "diabetes_flag",
-    "ischemic_heart_disease_flag",
-    "osteoporosis_flag",
-    "rheumatoid_arthritis_oa_flag",
-    "stroke_tia_flag",
-]
+CHRONIC_FLAG_COLUMNS = CHRONIC_FLAG_FEATURES
 
 
 def read_silver(table_name: str) -> DataFrame:
@@ -393,7 +383,6 @@ def build_gold_table() -> DataFrame:
             "sex_chronic_burden_band",
             F.concat_ws("__", F.col("sex"), F.col("chronic_burden_band")),
         )
-        .withColumn("age_missing_flag", F.col("age_years").isNull().cast("int"))
         .withColumn("age_years_imputed", F.coalesce(F.col("age_years"), F.lit(75)))
         .withColumn("age_over_65", F.greatest(F.col("age_years_imputed") - F.lit(65), F.lit(0)))
         .withColumn("age_over_75", F.greatest(F.col("age_years_imputed") - F.lit(75), F.lit(0)))
@@ -521,7 +510,6 @@ def build_gold_table() -> DataFrame:
         "chronic_burden_age_band",
         "chronic_burden_age_5yr_band",
         "sex_chronic_burden_band",
-        "age_missing_flag",
         "age_years_imputed",
         "age_over_65",
         "age_over_75",

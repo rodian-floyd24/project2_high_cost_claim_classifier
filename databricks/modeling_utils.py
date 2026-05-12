@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+from shared.feature_contract import (
+    CHRONIC_FLAG_FEATURES,
+    FEATURE_VERSION,
+    MODEL_CATEGORICAL_FEATURES,
+    MODEL_FEATURE_ORDER,
+    MODEL_INT32_FIELDS,
+    MODEL_INT64_FIELDS,
+    MODEL_NUMERIC_FEATURES,
+    RAW_INPUT_FIELDS,
+)
+
 TARGET_COLUMNS = {
     "target_annual_claim_cost",
     "target_year_high_cost_threshold",
@@ -13,6 +24,9 @@ SHARED_SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
 TEST_BUCKET_CUTOFF = 15
 VALIDATION_BUCKET_CUTOFF = 30
 TARGET_QUANTILE = 0.9
+
+NUMERIC_FEATURES = MODEL_NUMERIC_FEATURES
+CATEGORICAL_FEATURES = MODEL_CATEGORICAL_FEATURES
 
 
 def validate_required_columns(df, required_columns: list[str]) -> list[str]:

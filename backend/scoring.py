@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from shared.feature_contract import FEATURE_VERSION
+
 MODEL_NAME = "high_cost_claim_classifier"
 MODEL_VERSION = "actuarial_decision_support_v1"
 MODEL_PYTHON_VERSION = "3.11.10"
 MODEL_SKLEARN_VERSION = "1.3.0"
-FEATURE_VERSION = "gold_features_v2_utilization_chronic_structure"
 SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
 TARGET_DEFINITION = "next_year_top_decile_training_threshold"
 MODEL_METADATA_PATH = Path(__file__).resolve().parent / "model_artifacts" / "model_metadata.json"

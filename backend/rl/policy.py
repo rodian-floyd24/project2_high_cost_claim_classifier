@@ -5,6 +5,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from shared.feature_contract import MODEL_FEATURE_ORDER, MODEL_INT32_FIELDS, MODEL_INT64_FIELDS
+
+from ..scoring import deterministic_feature_order
 from .config import ACTION_TABLE, SIMULATION_DISCLAIMER
 from .mdp import (
     action_catalog,
@@ -17,89 +20,27 @@ from .mdp import (
     state_snapshot,
 )
 
-CHRONIC_FLAG_FEATURES = {
-    "alzheimers_flag",
-    "chf_flag",
-    "chronic_kidney_disease_flag",
-    "cancer_flag",
-    "copd_flag",
-    "depression_flag",
-    "diabetes_flag",
-    "ischemic_heart_disease_flag",
-    "osteoporosis_flag",
-    "rheumatoid_arthritis_oa_flag",
-    "stroke_tia_flag",
-}
-MODEL_INT32_FIELDS = {
-    "enrollment_months_count",
-    "full_year_enrolled_flag",
-    "partial_year_enrolled_flag",
-    "zero_enrollment_flag",
-    "low_enrollment_flag",
-    "age_years",
-    "age_missing_flag",
-    "age_years_imputed",
-    "age_over_65",
-    "age_over_75",
-    "age_over_85",
-    "chronic_condition_count",
-    "chronic_condition_count_squared",
-    *CHRONIC_FLAG_FEATURES,
-    "chronic_count_age_under_65",
-    "chronic_count_age_65_74",
-    "chronic_count_age_75_84",
-    "chronic_count_age_85_plus",
-    "annual_cost_year_decile",
-    "has_prior_year",
-    "prior_year_inpatient_claim_count",
-    "prior_year_total_claim_count",
-    "prior_year_enrollment_months_count",
-    "current_year_high_cost_indicator",
-    "prior_year_high_cost_indicator",
-    "inpatient_claim_count_change",
-    "total_claim_count_change",
-    "high_cost_last_2yr_count",
-    "high_cost_1_of_last_2yr",
-    "high_cost_2_of_last_2yr",
-    "any_inpatient_claim",
-    "any_outpatient_claim",
-    "any_carrier_claim",
-    "any_pde_claim",
-    "any_outpatient_ed_claim",
-    "multiple_provider_flag",
-    "multi_setting_utilization_flag",
-}
 
-MODEL_INT64_FIELDS = {
-    "age_squared",
-    "age_inpatient_claim_interaction",
-    "age_total_claim_interaction",
-    "age_chronic_count_interaction",
-    "sex_male_chronic_count_interaction",
-    "sex_female_chronic_count_interaction",
-    "enrollment_months_total_claim_interaction",
-    "enrollment_months_inpatient_interaction",
-    "inpatient_claim_count",
-    "outpatient_claim_count",
-    "carrier_claim_count",
-    "pde_claim_count",
-    "outpatient_ed_claim_count",
-    "outpatient_line_count",
-    "carrier_line_count",
-    "rx_days_supply",
-    "total_claim_days",
-    "total_claim_count",
-    "unique_provider_count",
-}
+def expected_model_feature_order(model) -> list[str]:
+    signature_order = deterministic_feature_order(model)
+    if signature_order:
+        return signature_order
+    return MODEL_FEATURE_ORDER
 
 
 def score_probability(feature_row: dict[str, Any], model) -> float:
     features = pd.DataFrame([feature_row])
     for column in MODEL_INT32_FIELDS:
-        features[column] = features[column].astype(np.int32)
+        if column in features.columns:
+            features[column] = features[column].astype(np.int32)
     for column in MODEL_INT64_FIELDS:
-        features[column] = features[column].astype(np.int64)
-    return float(model.predict_proba(features)[0][1])
+        if column in features.columns:
+            features[column] = features[column].astype(np.int64)
+    feature_order = expected_model_feature_order(model)
+    missing_columns = [column for column in feature_order if column not in features.columns]
+    if missing_columns:
+        raise ValueError(f"Missing engineered model features: {', '.join(missing_columns)}")
+    return float(model.predict_proba(features[feature_order])[0][1])
 
 
 def profile_to_state(feature_row: dict[str, Any], profile, model) -> tuple[float, dict[str, object]]:
