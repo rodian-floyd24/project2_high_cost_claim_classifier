@@ -11,6 +11,10 @@ MODEL_PYTHON_VERSION = "3.11.10"
 MODEL_SKLEARN_VERSION = "1.3.0"
 SPLIT_VERSION = "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout"
 TARGET_DEFINITION = "next_year_top_decile_training_threshold"
+CALIBRATION_METHOD = "isotonic_regression"
+CALIBRATION_STATUS = "calibrated"
+PROBABILITY_INTERPRETATION = "calibrated_probability_for_risk_tiering_not_a_definitive_prediction_of_individual_claims"
+RANKING_USE_STATEMENT = "rank_order_risk_usefulness_is_prioritized_for_targeted_operations_over_strict_classification_thresholds"
 MODEL_METADATA_PATH = Path(__file__).resolve().parent / "model_artifacts" / "model_metadata.json"
 
 
@@ -25,6 +29,10 @@ def load_model_metadata() -> dict[str, object]:
         "feature_version": FEATURE_VERSION,
         "split_version": SPLIT_VERSION,
         "target_definition": TARGET_DEFINITION,
+        "calibration_method": CALIBRATION_METHOD,
+        "calibration_status": CALIBRATION_STATUS,
+        "probability_interpretation": PROBABILITY_INTERPRETATION,
+        "ranking_use_statement": RANKING_USE_STATEMENT,
     }
 
 

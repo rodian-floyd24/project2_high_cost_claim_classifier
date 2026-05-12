@@ -6,6 +6,10 @@
   "feature_version": "gold_features_v2_utilization_chronic_structure",
   "split_version": "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout",
   "target_definition": "next_year_top_decile_training_threshold",
+  "calibration_method": "isotonic_regression",
+  "calibration_status": "calibrated",
+  "probability_interpretation": "calibrated_probability_for_risk_tiering_not_a_definitive_prediction_of_individual_claims",
+  "ranking_use_statement": "rank_order_risk_usefulness_is_prioritized_for_targeted_operations_over_strict_classification_thresholds",
   "artifact_source": "backend/model_artifacts/model/MLmodel",
   "mlflow_run_id": "347f8810d18d447b954eabb5be84f49e",
   "latest_databricks_refresh_run_id": "531845404459494"

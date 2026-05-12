@@ -15,6 +15,10 @@ def test_model_metadata_matches_runtime_contract() -> None:
     assert metadata["model_version"] == "actuarial_decision_support_v1"
     assert metadata["python_version"] == MODEL_PYTHON_VERSION
     assert metadata["sklearn_version"] == MODEL_SKLEARN_VERSION
+    assert "calibration_method" in metadata
+    assert "calibration_status" in metadata
+    assert "probability_interpretation" in metadata
+    assert "ranking_use_statement" in metadata
 
 
 def test_runtime_sklearn_version_matches_model_metadata() -> None:

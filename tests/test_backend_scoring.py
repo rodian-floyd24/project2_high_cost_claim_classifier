@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from backend.scoring import MODEL_NAME, MODEL_VERSION, operating_policy_for_score, score_to_operating_tier
+from backend.scoring import MODEL_NAME, MODEL_VERSION, CALIBRATION_METHOD, CALIBRATION_STATUS, PROBABILITY_INTERPRETATION, RANKING_USE_STATEMENT, operating_policy_for_score, score_to_operating_tier
 
 
 def test_operating_tier_is_deterministic() -> None:
@@ -20,3 +20,7 @@ def test_operating_policy_returns_action() -> None:
 def test_model_metadata_constants_are_present() -> None:
     assert MODEL_NAME
     assert MODEL_VERSION
+    assert CALIBRATION_METHOD
+    assert CALIBRATION_STATUS
+    assert PROBABILITY_INTERPRETATION
+    assert RANKING_USE_STATEMENT

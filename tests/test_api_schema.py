@@ -62,3 +62,13 @@ def test_prediction_response_contains_governance_fields() -> None:
     assert "input_review_flags" in body
     assert "human_review_required" in body
     assert body["reason_code_version"] == "reason_codes_v1"
+
+def test_metadata_endpoint_contains_calibration_fields() -> None:
+    response = TestClient(app).get("/metadata")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    model_metadata = body["risk_engine"]["model_metadata"]
+    assert "calibration_method" in model_metadata
+    assert "calibration_status" in model_metadata
+    assert "probability_interpretation" in model_metadata
+    assert "ranking_use_statement" in model_metadata
