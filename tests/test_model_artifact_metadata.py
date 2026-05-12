@@ -11,8 +11,8 @@ from backend.scoring import MODEL_PYTHON_VERSION, MODEL_SKLEARN_VERSION, load_mo
 
 def test_model_metadata_matches_runtime_contract() -> None:
     metadata = load_model_metadata()
-    assert metadata["model_name"] == "high_cost_claim_classifier"
-    assert metadata["model_version"] == "actuarial_decision_support_v1"
+    assert metadata["model_name"] == "gradient_boosting"
+    assert metadata["model_version"] == "actuarial_decision_support_v2"
     assert metadata["python_version"] == MODEL_PYTHON_VERSION
     assert metadata["sklearn_version"] == MODEL_SKLEARN_VERSION
     assert "calibration_method" in metadata

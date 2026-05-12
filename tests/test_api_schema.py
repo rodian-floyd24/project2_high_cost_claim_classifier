@@ -53,15 +53,51 @@ def test_prediction_response_contains_governance_fields() -> None:
     response = TestClient(app).post("/predict", json=VALID_PAYLOAD)
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["model_version"]
-    assert body["risk_score"] == body["risk_probability"]
-    assert body["operating_risk_score"] == body["risk_probability"]
-    assert "risk_percentile" not in body
-    assert body["recommended_action"]
-    assert body["top_risk_drivers"]
-    assert "input_review_flags" in body
-    assert "human_review_required" in body
-    assert body["reason_code_version"] == "reason_codes_v1"
+    assert set(body) >= {
+        "model_name",
+        "model_version",
+        "raw_model_probability",
+        "calibrated_probability",
+        "risk_score_0_100",
+        "risk_tier",
+        "predicted_high_cost",
+        "intervention_flag",
+        "decision_threshold",
+        "threshold_source",
+        "prediction",
+        "reason_codes",
+        "feature_contract_version",
+        "calibration_method",
+        "split_version",
+        "score_transform",
+        "reference_distribution_available",
+        "risk_probability",
+        "risk_score",
+        "metadata",
+        "annual_claim_cost_proxy",
+        "cost_mix",
+        "engineered_features",
+    }
+    prediction = body["prediction"]
+    assert body["raw_model_probability"] == prediction["raw_model_probability"]
+    assert body["calibrated_probability"] == prediction["calibrated_probability"]
+    assert body["risk_score_0_100"] == prediction["risk_score_0_100"]
+    assert body["risk_tier"] == prediction["risk_tier"]
+    assert body["intervention_flag"] == prediction["intervention_flag"]
+    assert body["decision_threshold"] == prediction["decision_threshold"]
+    assert body["predicted_high_cost"] == prediction["intervention_flag"]
+    assert body["risk_probability"] == prediction["calibrated_probability"]
+    assert body["risk_score"] == prediction["calibrated_probability"]
+    assert body["risk_score_0_100"] != int(round(body["risk_probability"] * 100))
+    assert 0.0 <= prediction["raw_model_probability"] <= 1.0
+    assert 0.0 <= prediction["calibrated_probability"] <= 1.0
+    assert 0 <= prediction["risk_score_0_100"] <= 100
+    assert prediction["risk_tier"] in {"low", "elevated", "high", "very_high"}
+    assert isinstance(prediction["intervention_flag"], bool)
+    assert body["reason_codes"]
+    assert body["metadata"]["model_name"]
+    assert body["metadata"]["calibration_method"]
+    assert body["metadata"]["score_transform"]
 
 def test_metadata_endpoint_contains_calibration_fields() -> None:
     response = TestClient(app).get("/metadata")

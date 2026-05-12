@@ -42,6 +42,23 @@ def main() -> None:
             y -= 0.01
             continue
 
+        if line.startswith("## "):
+            wrapped = textwrap.wrap(line[3:], width=70)
+            for chunk in wrapped:
+                ax.text(
+                    0.08,
+                    y,
+                    chunk,
+                    fontsize=12,
+                    fontweight="bold",
+                    va="top",
+                    ha="left",
+                    family="DejaVu Sans",
+                )
+                y -= 0.024
+            y -= 0.004
+            continue
+
         wrapped = textwrap.wrap(line, width=104)
         for chunk in wrapped:
             ax.text(

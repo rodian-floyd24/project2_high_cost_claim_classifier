@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 FEATURE_VERSION = "gold_features_v2_utilization_chronic_structure"
+FEATURE_CONTRACT_VERSION = "v1"
 
 RAW_INPUT_FIELDS = [
     "age_band",

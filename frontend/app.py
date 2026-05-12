@@ -129,6 +129,10 @@ def post_json(endpoint: str, payload: dict) -> dict:
     return response.json()
 
 
+def display_tier(tier: str) -> str:
+    return str(tier).replace("_", " ").title()
+
+
 def load_css() -> None:
     st.markdown(
         """
@@ -666,19 +670,33 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    probability = result["risk_probability"]
+    metrics = result["prediction"]
+    metadata = result["metadata"]
+    reasons = result["reason_codes"]
+    
+    probability = metrics["calibrated_probability"]
+    raw_probability = metrics["raw_model_probability"]
+    risk_score = metrics["risk_score_0_100"]
     annual_cost_proxy = result["annual_claim_cost_proxy"]
-    predicted_class = "High-cost" if result["predicted_high_cost"] else "Not high-cost"
+    intervention_flag = "Yes" if metrics["intervention_flag"] else "No"
+    
     st.markdown(
         (
             '<div class="result-strip">'
-            f'<div><span class="result-label">Risk probability</span><strong>{probability:.1%}</strong></div>'
-            f'<div><span class="result-label">Risk tier</span><strong>{result["risk_tier"]}</strong></div>'
-            f'<div><span class="result-label">Predicted class</span><strong>{predicted_class}</strong></div>'
+            f'<div><span class="result-label">Live Risk Score</span><strong>{risk_score} / 100</strong></div>'
+            f'<div><span class="result-label">Risk Tier</span><strong>{display_tier(metrics["risk_tier"])}</strong></div>'
+            f'<div><span class="result-label">Calibrated Probability</span><strong>{probability:.1%}</strong></div>'
+            f'<div><span class="result-label">Intervention Flag</span><strong>{intervention_flag}</strong></div>'
             "</div>"
         ),
         unsafe_allow_html=True,
     )
+    
+    if reasons:
+        st.markdown("#### Top Drivers")
+        for reason in reasons:
+            st.markdown(f"- {reason}")
+        st.write("")
 
     chart_col, cost_col = st.columns([0.95, 1.05])
     with chart_col:
@@ -692,13 +710,13 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
                     "axis": {"range": [0, 100]},
                     "bar": {"color": "#1f4e79"},
                     "steps": [
-                        {"range": [0, result["decision_threshold"] * 100], "color": "#e8f1f9"},
-                        {"range": [result["decision_threshold"] * 100, 100], "color": "#cfe0f2"},
+                        {"range": [0, metrics["decision_threshold"] * 100], "color": "#e8f1f9"},
+                        {"range": [metrics["decision_threshold"] * 100, 100], "color": "#cfe0f2"},
                     ],
                     "threshold": {
                         "line": {"color": "#b45309", "width": 4},
                         "thickness": 0.75,
-                        "value": result["decision_threshold"] * 100,
+                        "value": metrics["decision_threshold"] * 100,
                     },
                 },
             )
@@ -809,7 +827,13 @@ def render_results(result: dict | None, state_response: dict | None, recommendat
             hide_index=True,
         )
 
-    with st.expander("Show engineered feature snapshot"):
+    with st.expander("Diagnostic Model Internals"):
+        st.write("#### Raw Model Information")
+        st.write(f"**Model Name:** {metadata.get('model_name')}")
+        st.write(f"**Contract Version:** {metadata.get('feature_contract_version')}")
+        st.write(f"**Calibration Method:** {metadata.get('calibration_method')}")
+        st.write(f"**Raw Model Probability:** {raw_probability:.1%}")
+        st.write("#### Engineered Features Evaluated")
         engineered = pd.DataFrame([{"feature": key, "value": value} for key, value in result["engineered_features"].items()])
         st.dataframe(engineered, use_container_width=True, hide_index=True)
 

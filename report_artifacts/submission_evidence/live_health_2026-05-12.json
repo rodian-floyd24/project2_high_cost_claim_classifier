@@ -1,0 +1,1 @@
+{"status":"ok","model_path":"/opt/project2_high_cost_claim_classifier/backend/model_artifacts/model","q_table_path":"/opt/project2_high_cost_claim_classifier/backend/model_artifacts/q_table.json","model_name":"high_cost_claim_classifier","model_version":"actuarial_decision_support_v1","sklearn_version":"1.3.0"}

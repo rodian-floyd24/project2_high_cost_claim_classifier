@@ -2,6 +2,16 @@
 
 Project 2 for Distributed Systems for Data Science.
 
+## Live Application URL
+
+- Live Streamlit/API deployment: https://rayodian-ncf.com
+- Health check: https://rayodian-ncf.com/health
+- Grading smoke test:
+
+```bash
+PROJECT2_API_URL="https://rayodian-ncf.com" python3 test_project.py
+```
+
 ## Project Framing
 
 **IMPORTANT DISCLAIMER (DEMO / SCENARIO MODE)**: This repository implements a two-layer actuarial workflow rather than a standalone classifier. It is a **demonstration prototype** and is currently running in a "Scenario Mode" against a static MLflow artifact.
@@ -60,6 +70,13 @@ Canonical feature contract:
 - Shared constants: `RAW_INPUT_FIELDS`, `MODEL_NUMERIC_FEATURES`, `MODEL_CATEGORICAL_FEATURES`, and `MODEL_FEATURE_ORDER`
 - Training, serving, validation, and reporting code imports these constants instead of maintaining independent model feature lists.
 
+Serving artifact contract:
+- The repository separates the full Databricks modeling feature contract from the exact deployed artifact serving contract.
+- `SERVED_FEATURE_VERSION`: `served_artifact_36_features_v1`
+- `SERVED_MODEL_FEATURE_ORDER`: the exact 36-feature signature expected by the current MLflow artifact
+- `tests/test_artifact_consistency.py` verifies `artifact_signature == SERVED_MODEL_FEATURE_ORDER`.
+- `tests/test_backend_scoring_equivalence.py` verifies deterministic backend feature calculations and confirms `build_model_frame()` emits the served feature order.
+
 The final supervised comparison includes four model families:
 - logistic regression
 - random forest
@@ -109,7 +126,8 @@ PROJECT2_API_URL="https://rayodian-ncf.com" python3 test_project.py
 
 The Streamlit app displays:
 
-- Risk prediction
+- Live Risk Score, Risk Tier, Calibrated Probability, and Intervention Flag
+- Top Drivers / reason codes
 - Current MDP state
 - Recommended action
 - Action-by-action comparison
@@ -125,6 +143,22 @@ In the demo presets, the calibrated policy now produces a readable intervention 
 
 That separation is intentional. The policy layer is meant to optimize operational value under stylized assumptions rather than simply mirror the classifier threshold.
 
+## Example Prediction
+
+For the moderate chronic-care demo profile, the app/API returns a grader-readable response like:
+
+```text
+Live Risk Score: 62 / 100
+Risk Tier: Low
+Calibrated Probability: 6.4%
+Intervention Flag: Yes
+Top Drivers:
+- High claims per enrollment month
+- Carrier claim activity present
+```
+
+The raw model probability is still available in the diagnostic payload, but the UI emphasizes the calibrated actuarial-style score and tier.
+
 ## Repo Layout
 
 - `planning/`: architecture, scope, and project framing notes
@@ -139,6 +173,8 @@ That separation is intentional. The policy layer is meant to optimize operationa
 - `writeup_source.md` / `writeup.pdf`: one-page submission write-up
 
 For the complete technical implementation narrative, see [`report_artifacts/full_project_implementation_report.pdf`](report_artifacts/full_project_implementation_report.pdf).
+
+For the artifact and serving-contract upgrade summary, see [`report_artifacts/technical_upgrade_walkthrough.md`](report_artifacts/technical_upgrade_walkthrough.md).
 
 ## Local Setup
 
@@ -175,9 +211,10 @@ python3 test_project.py
 
 Final local verification completed:
 - `compileall` passed
-- `pytest`: 33 passed, 1 skipped
-- `./scripts/run_local_tests.sh` passed, including the leakage check
+- `./scripts/run_local_tests.sh`: 71 passed, 1 skipped, including the leakage check
+- focused live-risk-score tests: 20 passed
 - `python3 test_project.py`: PASS
+- `PROJECT2_API_URL="https://rayodian-ncf.com" python3 test_project.py`: PASS
 - backend `/health` and `/metadata` smoke checks passed
 - Streamlit frontend reachability check passed
 

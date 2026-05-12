@@ -12,7 +12,12 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI
 from pydantic import BaseModel, Field, model_validator
-from shared.feature_contract import SERVED_MODEL_FEATURE_ORDER, MODEL_INT32_FIELDS, MODEL_INT64_FIELDS
+from shared.feature_contract import (
+    FEATURE_CONTRACT_VERSION,
+    SERVED_MODEL_FEATURE_ORDER,
+    MODEL_INT32_FIELDS,
+    MODEL_INT64_FIELDS,
+)
 
 from .explanations import reason_code_version, top_risk_drivers
 from .rl.config import SIMULATION_DISCLAIMER
@@ -25,7 +30,10 @@ from .scoring import (
     MODEL_VERSION,
     deterministic_feature_order,
     load_model_metadata,
-    operating_policy_for_score,
+    compute_risk_score,
+    assign_risk_tier,
+    generate_reason_codes,
+    load_reference_distribution,
 )
 
 
@@ -92,23 +100,45 @@ class BeneficiaryProfile(BaseModel):
         return self
 
 
+class PredictionMetrics(BaseModel):
+    raw_model_probability: float
+    calibrated_probability: float
+    risk_score_0_100: int
+    risk_tier: str
+    intervention_flag: bool
+    decision_threshold: float
+
+
+class PredictionMetadata(BaseModel):
+    model_name: str
+    feature_contract_version: str
+    calibration_method: str
+    threshold_source: str
+    split_version: str
+    score_transform: str
+
+
 class PredictionResponse(BaseModel):
     model_name: str
     model_version: str
-    risk_score: float
-    risk_probability: float
-    predicted_high_cost: bool
-    decision_threshold: float
+    raw_model_probability: float
+    calibrated_probability: float
+    risk_score_0_100: int
     risk_tier: str
-    operating_risk_tier: str
-    operating_risk_score: float
-    recommended_action: str
-    top_risk_drivers: list[str]
-    input_review_flags: list[str]
-    human_review_required: bool
-    manual_review_required: bool
-    manual_review_reasons: list[str]
-    reason_code_version: str
+    predicted_high_cost: bool
+    intervention_flag: bool
+    decision_threshold: float
+    threshold_source: str
+    reason_codes: list[str]
+    feature_contract_version: str
+    calibration_method: str
+    split_version: str
+    score_transform: str
+    reference_distribution_available: bool
+    risk_probability: float
+    risk_score: float
+    prediction: PredictionMetrics
+    metadata: PredictionMetadata
     annual_claim_cost_proxy: float
     cost_mix: dict[str, float]
     engineered_features: dict[str, float | int | str]
@@ -444,23 +474,52 @@ def build_model_frame(feature_row: dict[str, float | int | str], model=None) -> 
     return features[feature_order]
 
 
-def risk_tier(probability: float) -> str:
-    display_map = {
-        "low": "Lower",
-        "elevated": "Elevated",
-        "high": "High",
-        "very_high": "Very high",
-    }
-    return display_map[assign_risk_tier(probability)]
+def _final_estimator(model):
+    if hasattr(model, "steps") and model.steps:
+        return model.steps[-1][1]
+    return model
+
+
+def extract_model_probabilities(model, features: pd.DataFrame) -> tuple[float, float]:
+    calibrated_probability = float(model.predict_proba(features)[0][1])
+    estimator = _final_estimator(model)
+    if not hasattr(estimator, "calibrated_classifiers_"):
+        return calibrated_probability, calibrated_probability
+
+    raw_estimator = getattr(estimator, "estimator", None) or getattr(estimator, "base_estimator", None)
+    if raw_estimator is None:
+        return calibrated_probability, calibrated_probability
+
+    try:
+        raw_features = features
+        if hasattr(model, "steps") and len(model.steps) > 1:
+            raw_features = model[:-1].transform(features)
+        raw_model_probability = float(raw_estimator.predict_proba(raw_features)[0][1])
+        return raw_model_probability, calibrated_probability
+    except Exception:
+        return calibrated_probability, calibrated_probability
 
 
 def build_prediction_response(profile: BeneficiaryProfile) -> PredictionResponse:
     feature_row = build_feature_row(profile)
     model = load_model()
     features = build_model_frame(feature_row, model)
-    probability = float(model.predict_proba(features)[0][1])
-    operating_risk_tier, operating_risk_score, recommended_action = operating_policy_for_score(probability)
-    review_reasons = input_review_flags(feature_row)
+    metadata = load_model_metadata()
+    decision_threshold = float(metadata.get("decision_threshold", MODEL_DECISION_THRESHOLD))
+    threshold_source = str(metadata.get("decision_threshold_source", "validation_f1"))
+    raw_model_probability, calibrated_probability = extract_model_probabilities(model, features)
+
+    reference_distribution = load_reference_distribution()
+    score_0_100, transform = compute_risk_score(calibrated_probability, reference_distribution)
+    tier = assign_risk_tier(score_0_100)
+    reasons = generate_reason_codes(feature_row, metadata.get("reason_thresholds", {}))
+    model_name = str(metadata.get("model_name", MODEL_NAME))
+    model_version = str(metadata.get("model_version", MODEL_VERSION))
+    feature_contract_version = str(metadata.get("feature_contract_version", FEATURE_CONTRACT_VERSION))
+    calibration_method = str(metadata.get("calibration_method", "unknown"))
+    split_version = str(metadata.get("split_version", "unknown"))
+    intervention_flag = calibrated_probability >= decision_threshold
+    
     annual_claim_cost_proxy = (
         float(profile.rx_total_cost)
         + float(profile.inpatient_total_cost)
@@ -473,23 +532,46 @@ def build_prediction_response(profile: BeneficiaryProfile) -> PredictionResponse
         "carrier": float(profile.carrier_total_cost),
         "prescription": float(profile.rx_total_cost),
     }
+    
+    metrics = PredictionMetrics(
+        raw_model_probability=raw_model_probability,
+        calibrated_probability=calibrated_probability,
+        risk_score_0_100=score_0_100,
+        risk_tier=tier,
+        intervention_flag=intervention_flag,
+        decision_threshold=decision_threshold,
+    )
+    
+    prediction_metadata = PredictionMetadata(
+        model_name=model_name,
+        feature_contract_version=feature_contract_version,
+        calibration_method=calibration_method,
+        threshold_source=threshold_source,
+        split_version=split_version,
+        score_transform=transform,
+    )
+    
     return PredictionResponse(
-        model_name=MODEL_NAME,
-        model_version=MODEL_VERSION,
-        risk_score=probability,
-        risk_probability=probability,
-        predicted_high_cost=probability >= MODEL_DECISION_THRESHOLD,
-        decision_threshold=MODEL_DECISION_THRESHOLD,
-        risk_tier=risk_tier(probability),
-        operating_risk_tier=operating_risk_tier,
-        operating_risk_score=operating_risk_score,
-        recommended_action=recommended_action,
-        top_risk_drivers=top_risk_drivers(feature_row),
-        input_review_flags=review_reasons,
-        human_review_required=bool(review_reasons),
-        manual_review_required=bool(review_reasons),
-        manual_review_reasons=review_reasons,
-        reason_code_version=reason_code_version(),
+        model_name=model_name,
+        model_version=model_version,
+        raw_model_probability=raw_model_probability,
+        calibrated_probability=calibrated_probability,
+        risk_score_0_100=score_0_100,
+        risk_tier=tier,
+        predicted_high_cost=intervention_flag,
+        intervention_flag=intervention_flag,
+        decision_threshold=decision_threshold,
+        threshold_source=threshold_source,
+        reason_codes=reasons,
+        feature_contract_version=feature_contract_version,
+        calibration_method=calibration_method,
+        split_version=split_version,
+        score_transform=transform,
+        reference_distribution_available=bool(reference_distribution),
+        risk_probability=calibrated_probability,
+        risk_score=calibrated_probability,
+        prediction=metrics,
+        metadata=prediction_metadata,
         annual_claim_cost_proxy=annual_claim_cost_proxy,
         cost_mix=cost_mix,
         engineered_features=feature_row,
@@ -581,6 +663,10 @@ def install_sklearn_compat_shim() -> None:
             negative = 1.0 - positive
             return np.column_stack([negative, positive])
 
+        def get_init_raw_predictions(self, X, estimator):
+            probas = estimator.predict_proba(X)
+            return self.link.link(probas[:, 1]).reshape(-1, 1)
+
     class MultinomialDeviance(_BaseLoss):
         is_multiclass = True
         link = _MultinomialLogitLink()
@@ -662,7 +748,7 @@ def metadata() -> dict[str, object]:
             "model_metadata": load_model_metadata(),
             "prediction_target": "next_year_high_cost",
             "decision_threshold": MODEL_DECISION_THRESHOLD,
-            "operating_policy": "score >= 0.30 intensive review; 0.20-0.30 moderate outreach; 0.10-0.20 monitor and flag",
+            "operating_policy": "risk_score_0_100 >= 95 very high; >= 90 high; >= 75 elevated; otherwise low",
             "required_fields": list(BeneficiaryProfile.model_fields.keys()),
         },
         "policy_layer": load_rl_metadata(),

@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from backend.explanations import top_risk_drivers
-from backend.scoring import operating_policy_for_score, score_to_operating_tier
+from backend.scoring import assign_risk_tier, compute_risk_score
 
 
 def test_score_to_operating_tier_is_deterministic() -> None:
-    assert score_to_operating_tier(0.31) == "very_high"
-    assert score_to_operating_tier(0.21) == "high"
-    assert score_to_operating_tier(0.11) == "elevated"
-    assert score_to_operating_tier(0.09) == "routine"
-    assert operating_policy_for_score(0.31)[2] == "intensive_case_management_review"
+    assert assign_risk_tier(99) == "very_high"
+    assert assign_risk_tier(92) == "high"
+    assert assign_risk_tier(80) == "elevated"
+    assert assign_risk_tier(50) == "low"
+    score, transform = compute_risk_score(0.31)
+    assert score > 90
+    assert transform == "monotone_probability_fallback_v1"
 
 
 def test_reason_codes_are_stable() -> None:
