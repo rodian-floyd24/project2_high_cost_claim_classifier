@@ -187,6 +187,21 @@ MODEL_CATEGORICAL_FEATURES = [
 
 MODEL_FEATURE_ORDER = MODEL_NUMERIC_FEATURES + MODEL_CATEGORICAL_FEATURES
 
+SERVED_FEATURE_VERSION = "served_artifact_36_features_v1"
+
+SERVED_MODEL_FEATURE_ORDER = [
+    'enrollment_months_count', 'chronic_condition_count', 'inpatient_claim_count', 
+    'outpatient_claim_count', 'carrier_claim_count', 'pde_claim_count', 'total_claim_days', 
+    'total_claim_count', 'unique_provider_count', 'cost_per_enrollment_month', 
+    'claims_per_enrollment_month', 'claim_days_per_enrollment_month', 'providers_per_enrollment_month', 
+    'provider_fragmentation_index', 'any_inpatient_claim', 'any_outpatient_claim', 
+    'any_carrier_claim', 'any_pde_claim', 'multiple_provider_flag', 'rx_total_cost', 
+    'inpatient_total_cost', 'outpatient_total_cost', 'carrier_total_cost', 'rx_cost_log1p', 
+    'inpatient_cost_log1p', 'outpatient_cost_log1p', 'carrier_cost_log1p', 'annual_cost_log1p', 
+    'inpatient_cost_share', 'outpatient_cost_share', 'carrier_cost_share', 'rx_cost_share', 
+    'age_band', 'sex', 'race_code', 'state_code'
+]
+
 MODEL_INT32_FIELDS = {
     "enrollment_months_count",
     "full_year_enrolled_flag",

@@ -100,12 +100,27 @@ PRESETS = {
     },
 }
 
-PROJECT_METRICS = [
-    ("Test PR-AUC", "0.465", "Gradient boosting holdout result"),
-    ("Top-5% Capture", "28.8%", "High-cost cases found in highest-risk 5%"),
-    ("Top-10% Capture", "43.0%", "High-cost cases found in highest-risk 10%"),
-    ("Brier Score", "0.073", "Probability calibration error, lower is better"),
-]
+def fetch_model_metrics() -> list[tuple[str, str, str]]:
+    try:
+        response = requests.get(f"{API_BASE_URL}/model_metrics", timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        if data:
+            model_display_name = data.get('model_name', 'model').replace('_', ' ').capitalize()
+            return [
+                ("Test PR-AUC", f"{data.get('pr_auc', 0.0):.3f}", f"{model_display_name} holdout result"),
+                ("Top-5% Capture", f"{data.get('top_5_capture_rate', 0.0):.1%}", "High-cost cases found in highest-risk 5%"),
+                ("Top-10% Capture", f"{data.get('top_10_capture_rate', 0.0):.1%}", "High-cost cases found in highest-risk 10%"),
+                ("Brier Score", f"{data.get('brier_score', 0.0):.3f}", "Probability calibration error, lower is better"),
+            ]
+    except requests.RequestException:
+        pass
+    return [
+        ("Test PR-AUC", "N/A", "Model metrics unavailable. Check backend artifact metadata."),
+        ("Top-5% Capture", "N/A", "Model metrics unavailable. Check backend artifact metadata."),
+        ("Top-10% Capture", "N/A", "Model metrics unavailable. Check backend artifact metadata."),
+        ("Brier Score", "N/A", "Model metrics unavailable. Check backend artifact metadata."),
+    ]
 
 
 def post_json(endpoint: str, payload: dict) -> dict:
@@ -475,6 +490,7 @@ def load_css() -> None:
 
 
 def render_metric_cards() -> None:
+    metrics = fetch_model_metrics()
     cards = "".join(
         (
             f'<div class="metric-card">'
@@ -483,7 +499,7 @@ def render_metric_cards() -> None:
             f'<div class="metric-note">{note}</div>'
             f"</div>"
         )
-        for label, value, note in PROJECT_METRICS
+        for label, value, note in metrics
     )
     st.markdown(f'<div class="metric-grid">{cards}</div>', unsafe_allow_html=True)
 

@@ -4,7 +4,8 @@ Project 2 for Distributed Systems for Data Science.
 
 ## Project Framing
 
-This repository implements a two-layer actuarial workflow rather than a standalone classifier.
+**IMPORTANT DISCLAIMER (DEMO / SCENARIO MODE)**: This repository implements a two-layer actuarial workflow rather than a standalone classifier. It is a **demonstration prototype** and is currently running in a "Scenario Mode" against a static MLflow artifact.
+The model is **not approved** for autonomous coverage, benefit, pricing, reserving, clinical, or adverse consumer decisions. It is a governed decision-support prototype intended to be used with human review.
 
 - Risk engine: an empirically trained supervised model estimates next-year high-cost risk from beneficiary-level claim and demographic features.
 - Policy layer: a simulated MDP/Q-learning intervention prototype recommends the action with the highest estimated long-run value for the beneficiary's current state.
@@ -12,11 +13,8 @@ This repository implements a two-layer actuarial workflow rather than a standalo
 
 The result is an interactive app that demonstrates end-to-end risk scoring, state mapping, and intervention recommendation.
 
-The model is not approved for autonomous coverage, benefit, pricing, reserving, clinical, or adverse consumer decisions. It is a governed decision-support prototype with human review.
-
 Use this sentence consistently in demos, docs, and presentation material:
-
-The risk engine is empirically trained on observed data, while the reinforcement-learning policy layer is a simulated decision prototype built on stylized transition and reward assumptions.
+> The risk engine is empirically trained on observed data, while the reinforcement-learning policy layer is a simulated decision prototype built on stylized transition and reward assumptions.
 
 ## Core Prediction Target
 

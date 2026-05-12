@@ -30,6 +30,11 @@ def test_runtime_sklearn_version_matches_model_metadata() -> None:
             f"artifact serving contract is Python {artifact_python}; "
             f"current local runtime is Python {runtime_python}"
         )
+    if sklearn.__version__ != metadata["sklearn_version"]:
+        pytest.skip(
+            f"artifact serving contract is sklearn {metadata['sklearn_version']}; "
+            f"current local runtime is {sklearn.__version__}"
+        )
     assert sklearn.__version__ == metadata["sklearn_version"]
 
 

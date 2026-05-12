@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI
 from pydantic import BaseModel, Field, model_validator
-from shared.feature_contract import MODEL_FEATURE_ORDER, MODEL_INT32_FIELDS, MODEL_INT64_FIELDS
+from shared.feature_contract import SERVED_MODEL_FEATURE_ORDER, MODEL_INT32_FIELDS, MODEL_INT64_FIELDS
 
 from .explanations import reason_code_version, top_risk_drivers
 from .rl.config import SIMULATION_DISCLAIMER
@@ -32,6 +32,7 @@ from .scoring import (
 MODEL_PATH = Path(__file__).resolve().parent / "model_artifacts" / "model"
 Q_TABLE_PATH = Path(__file__).resolve().parent / "model_artifacts" / "q_table.json"
 RL_METADATA_PATH = Path(__file__).resolve().parent / "model_artifacts" / "rl_metadata.json"
+MODEL_METRICS_PATH = Path(__file__).resolve().parent / "model_artifacts" / "model_metrics.json"
 MODEL_DECISION_THRESHOLD = 0.20
 
 
@@ -425,7 +426,7 @@ def expected_model_feature_order(model=None) -> list[str]:
         signature_order = deterministic_feature_order(model)
         if signature_order:
             return signature_order
-    return MODEL_FEATURE_ORDER
+    return SERVED_MODEL_FEATURE_ORDER
 
 
 def build_model_frame(feature_row: dict[str, float | int | str], model=None) -> pd.DataFrame:
@@ -667,6 +668,13 @@ def metadata() -> dict[str, object]:
         "policy_layer": load_rl_metadata(),
         "disclaimer": SIMULATION_DISCLAIMER,
     }
+
+
+@app.get("/model_metrics")
+def model_metrics() -> dict[str, object]:
+    if MODEL_METRICS_PATH.exists():
+        return json.loads(MODEL_METRICS_PATH.read_text())
+    return {}
 
 
 @app.post("/predict", response_model=PredictionResponse)

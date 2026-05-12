@@ -1,0 +1,15 @@
+{
+  "model_name": "gradient_boosting",
+  "run_id": "fb76428e824047a89aa622e37fe888eb",
+  "split_name": "test",
+  "positive_rate": 0.1044,
+  "roc_auc": 0.8333,
+  "pr_auc": 0.4653,
+  "brier_score": 0.0730,
+  "top_5_capture_rate": 0.2885,
+  "top_5_lift": 5.7687,
+  "top_10_capture_rate": 0.4301,
+  "top_10_lift": 4.3011,
+  "calibration_method": "isotonic_regression",
+  "processed_at_utc": "2026-05-07T14:47:06.995Z"
+}
