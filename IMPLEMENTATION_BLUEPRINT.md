@@ -1493,7 +1493,7 @@ def validate_no_missing_key(df, key_columns):
 def build_year_t_to_t_plus_1_frame(gold_df):
     ...
 
-def assign_temporal_hash_split(df):
+def assign_beneficiary_hash_split(df):
     ...
 
 def compute_top_decile_threshold(train_df):

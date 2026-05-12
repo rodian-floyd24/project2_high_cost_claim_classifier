@@ -74,7 +74,7 @@ def build_modeling_frame(df: DataFrame) -> DataFrame:
     )
 
 
-def temporal_train_pool(df: DataFrame) -> DataFrame:
+def historical_train_pool(df: DataFrame) -> DataFrame:
     latest_target_year = df.agg(F.max("target_year").alias("latest_target_year")).collect()[0]["latest_target_year"]
     return df.filter(F.col("target_year") < F.lit(latest_target_year))
 
@@ -134,11 +134,11 @@ def safe_avg_when(condition, value):
 
 def main() -> None:
     spark.sql(f"CREATE DATABASE IF NOT EXISTS {MODEL_DATABASE}")
-    modeling_df = build_modeling_frame(read_gold()).cache()
-    train_pool = temporal_train_pool(modeling_df)
+    modeling_df = build_modeling_frame(read_gold())
+    train_pool = historical_train_pool(modeling_df)
     fixed_threshold = train_pool.approxQuantile("target_annual_claim_cost", [FIXED_THRESHOLD_QUANTILE], 0.001)[0]
     if fixed_threshold is None:
-        raise ValueError("Cannot compute fixed threshold because the temporal training pool is empty.")
+        raise ValueError("Cannot compute fixed threshold because the historical training pool is empty.")
 
     sensitivity_df = None
     for definition in TARGET_DEFINITIONS:
@@ -158,7 +158,7 @@ def main() -> None:
 
     print(
         f"target sensitivity table written to {MODEL_DATABASE}.{TARGET_SENSITIVITY_TABLE}; "
-        f"fixed temporal-train threshold={fixed_threshold:.2f}"
+        f"fixed historical-train threshold={fixed_threshold:.2f}"
     )
     display(sensitivity_df.orderBy("target_definition", "target_year"))
 
