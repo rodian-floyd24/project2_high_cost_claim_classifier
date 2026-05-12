@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from backend.app import BeneficiaryProfile, build_feature_row, build_model_frame
-from shared.feature_contract import SERVED_MODEL_FEATURE_ORDER
+from shared.feature_contract import MODEL_FEATURE_ORDER
 
 
 def test_build_model_frame_matches_served_feature_order() -> None:
@@ -29,9 +29,9 @@ def test_build_model_frame_matches_served_feature_order() -> None:
         carrier_total_cost=2000.0,
     )
     feature_row = build_feature_row(profile)
-    # Don't pass model, it should default to SERVED_MODEL_FEATURE_ORDER
+    # Don't pass model; it should default to the canonical model feature order.
     features = build_model_frame(feature_row)
-    assert list(features.columns) == SERVED_MODEL_FEATURE_ORDER
+    assert list(features.columns) == MODEL_FEATURE_ORDER
 
 
 def test_numerical_feature_formulas() -> None:

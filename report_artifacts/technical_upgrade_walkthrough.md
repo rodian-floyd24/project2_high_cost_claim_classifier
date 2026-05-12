@@ -25,7 +25,7 @@ The artifact consistency test in `tests/test_artifact_consistency.py` verifies t
 
 ## 2. Feature Contract Alignment
 
-The repository now separates the full Databricks modeling feature contract from the exact deployed artifact serving contract.
+The repository now serves a Databricks MLflow artifact whose signature matches the full Databricks modeling feature contract.
 
 The full Databricks modeling feature universe remains defined in:
 
@@ -33,36 +33,25 @@ The full Databricks modeling feature universe remains defined in:
 shared/feature_contract.py
 ```
 
-The currently deployed MLflow artifact expects a smaller 36-feature input signature. That serving-specific contract is explicit:
-
-```python
-SERVED_FEATURE_VERSION = "served_artifact_36_features_v1"
-SERVED_MODEL_FEATURE_ORDER = [...]
-```
+The current served artifact expects the full 125-feature signature exported from Databricks.
 
 The artifact consistency suite verifies:
 
 ```python
-artifact_signature == SERVED_MODEL_FEATURE_ORDER
+artifact_signature == MODEL_FEATURE_ORDER
 ```
 
-**Result:** the deployed artifact's feature space is documented and continuously tested instead of being inferred from the broader training feature universe.
+**Result:** the deployed artifact's feature space is documented and continuously tested against the canonical feature universe.
 
 ## 3. Backend Scoring Equivalence
 
 The backend scoring pipeline now falls back to:
 
 ```python
-SERVED_MODEL_FEATURE_ORDER
-```
-
-instead of the broader:
-
-```python
 MODEL_FEATURE_ORDER
 ```
 
-This prevents the backend from constructing a feature matrix that does not match the artifact signature.
+When a loaded MLflow artifact includes a signature, the backend uses that signature directly. When no model object is passed, `build_model_frame()` falls back to the canonical `MODEL_FEATURE_ORDER`.
 
 `tests/test_backend_scoring_equivalence.py` verifies deterministic feature calculations including:
 
@@ -77,7 +66,7 @@ carrier_cost_share
 rx_cost_share
 ```
 
-**Result:** backend feature engineering is tested against the serving contract, reducing training-serving skew.
+**Result:** backend feature engineering is tested against the full serving contract, reducing training-serving skew.
 
 ## 4. Live Risk Score
 
@@ -196,13 +185,11 @@ training feature contract != served artifact signature != dependency environment
 After the upgrade, the serving path is cleaner:
 
 ```text
-served artifact signature = SERVED_MODEL_FEATURE_ORDER = backend scoring contract = tested artifact contract
+served artifact signature = MODEL_FEATURE_ORDER = backend scoring contract = tested artifact contract
 ```
 
 The project is now more defensible as a portfolio-grade machine learning system because it has explicit artifact versioning, an explicit serving feature contract, dependency-artifact consistency, dynamic model metrics, backend feature equivalence tests, monitoring gates, model-card documentation, scenario-mode disclaimers, live risk scoring, deterministic reason codes, and passing test coverage.
 
 ## Remaining Future Upgrade
 
-The main future improvement is a Databricks retraining pass that trains a fresh final model using the full `MODEL_FEATURE_ORDER`, then exports a new artifact whose MLflow signature matches the full feature contract.
-
-Until that retraining is available, using `SERVED_MODEL_FEATURE_ORDER` is the correct engineering decision. It is honest, reproducible, and testable.
+The current served artifact matches the full `MODEL_FEATURE_ORDER`. The remaining upgrade is operational rather than contractual: rerun the full Databricks refresh with longer task timeouts or lighter training settings so the latest run can complete end-to-end and refresh all downstream comparison, calibration, explainability, and monitoring artifacts in one pass.

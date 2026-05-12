@@ -7,10 +7,10 @@
   "feature_version": "gold_features_v2_utilization_chronic_structure",
   "split_version": "xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout",
   "target_definition": "next_year_top_decile_training_threshold",
-  "high_cost_threshold_train_only": 13210.0,
+  "high_cost_threshold_train_only": 10420.0,
   "calibration_method": "isotonic",
   "calibration_status": "calibrated",
-  "decision_threshold": 0.041,
+  "decision_threshold": 0.2,
   "decision_threshold_source": "validation_f1",
   "score_transform": "percentile_rank_calibrated_probability",
   "reference_distribution_available": true,
@@ -32,6 +32,10 @@
   "probability_interpretation": "calibrated_probability_for_risk_tiering_not_a_definitive_prediction_of_individual_claims",
   "ranking_use_statement": "rank_order_risk_usefulness_is_prioritized_for_targeted_operations_over_strict_classification_thresholds",
   "artifact_source": "backend/model_artifacts/model/MLmodel",
-  "mlflow_run_id": "347f8810d18d447b954eabb5be84f49e",
-  "latest_databricks_refresh_run_id": "531845404459494"
+  "mlflow_run_id": "fb76428e824047a89aa622e37fe888eb",
+  "latest_databricks_refresh_run_id": "360079551769174",
+  "artifact_signature_source": "databricks_completed_run_fb76428e824047a89aa622e37fe888eb",
+  "artifact_signature_feature_count": 125,
+  "artifact_signature_matches": "MODEL_FEATURE_ORDER",
+  "latest_retraining_attempt_status": "timed_out_before_new_artifact"
 }

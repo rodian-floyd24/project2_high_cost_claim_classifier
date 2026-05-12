@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field, model_validator
 from shared.feature_contract import (
     FEATURE_CONTRACT_VERSION,
-    SERVED_MODEL_FEATURE_ORDER,
+    MODEL_FEATURE_ORDER,
     MODEL_INT32_FIELDS,
     MODEL_INT64_FIELDS,
 )
@@ -456,7 +456,7 @@ def expected_model_feature_order(model=None) -> list[str]:
         signature_order = deterministic_feature_order(model)
         if signature_order:
             return signature_order
-    return SERVED_MODEL_FEATURE_ORDER
+    return MODEL_FEATURE_ORDER
 
 
 def build_model_frame(feature_row: dict[str, float | int | str], model=None) -> pd.DataFrame:

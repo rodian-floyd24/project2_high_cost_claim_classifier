@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import app, build_model_frame
 from backend.scoring import assign_risk_tier, compute_risk_score, load_reference_distribution
-from shared.feature_contract import FEATURE_CONTRACT_VERSION, SERVED_MODEL_FEATURE_ORDER
+from shared.feature_contract import FEATURE_CONTRACT_VERSION, MODEL_FEATURE_ORDER
 
 
 VALID_PAYLOAD = {
@@ -93,7 +93,7 @@ def test_feature_contract_used_by_serving() -> None:
     body = score_payload()
     assert body["feature_contract_version"] == FEATURE_CONTRACT_VERSION
     frame = build_model_frame(body["engineered_features"])
-    assert list(frame.columns) == SERVED_MODEL_FEATURE_ORDER
+    assert list(frame.columns) == MODEL_FEATURE_ORDER
 
 
 def test_decision_threshold_not_default_point_five_unless_explicitly_justified() -> None:

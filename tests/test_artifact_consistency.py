@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from shared.feature_contract import SERVED_MODEL_FEATURE_ORDER
+from shared.feature_contract import MODEL_FEATURE_ORDER
 
 ARTIFACT_DIR = Path(__file__).resolve().parents[1] / "backend" / "model_artifacts" / "model"
 METADATA_PATH = Path(__file__).resolve().parents[1] / "backend" / "model_artifacts" / "model_metadata.json"
@@ -47,4 +47,4 @@ def test_artifact_signature_matches_served_feature_order() -> None:
     model = Model.load(ARTIFACT_DIR)
     signature_features = [item.name for item in model.signature.inputs.inputs]
 
-    assert signature_features == SERVED_MODEL_FEATURE_ORDER
+    assert signature_features == MODEL_FEATURE_ORDER

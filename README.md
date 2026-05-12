@@ -71,11 +71,9 @@ Canonical feature contract:
 - Training, serving, validation, and reporting code imports these constants instead of maintaining independent model feature lists.
 
 Serving artifact contract:
-- The repository separates the full Databricks modeling feature contract from the exact deployed artifact serving contract.
-- `SERVED_FEATURE_VERSION`: `served_artifact_36_features_v1`
-- `SERVED_MODEL_FEATURE_ORDER`: the exact 36-feature signature expected by the current MLflow artifact
-- `tests/test_artifact_consistency.py` verifies `artifact_signature == SERVED_MODEL_FEATURE_ORDER`.
-- `tests/test_backend_scoring_equivalence.py` verifies deterministic backend feature calculations and confirms `build_model_frame()` emits the served feature order.
+- The repository now serves the Databricks artifact whose MLflow signature matches the full `MODEL_FEATURE_ORDER`.
+- `tests/test_artifact_consistency.py` verifies `artifact_signature == MODEL_FEATURE_ORDER`.
+- `tests/test_backend_scoring_equivalence.py` verifies deterministic backend feature calculations and confirms `build_model_frame()` emits the canonical feature order.
 
 The final supervised comparison includes four model families:
 - logistic regression
