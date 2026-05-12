@@ -1,13 +1,17 @@
 # Databricks notebook source
 """Model monitoring scaffold for score, calibration, and top-k drift checks."""
 
+# COMMAND ----------
+
+# MAGIC %run ./run_selection_utils
+
+# COMMAND ----------
+
 from __future__ import annotations
 
 import os
 
 from pyspark.sql import functions as F
-
-from databricks.run_selection_utils import filter_to_selected_test_rows, selected_test_runs
 
 
 MODEL_DATABASE = os.environ.get("MODEL_DATABASE", os.environ.get("GOLD_DATABASE", "default"))

@@ -10,6 +10,8 @@ import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
 
+from shared.feature_contract import FEATURE_VERSION
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "report_artifacts"
@@ -214,7 +216,7 @@ Features are measured in beneficiary-year t. The target is measured from annual 
 
 The final comparison split is the locked v2 beneficiary-hash holdout: `xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout`. Hash buckets `<15` define test, buckets `15-29` define validation, and buckets `>=30` define train.
 
-Shared utilities in `databricks/modeling_utils.py` centralize prospective frame creation, split assignment, threshold application, and leakage rejection. `scripts/check_no_leakage.py` statically checks training feature lists for target columns.
+Shared utilities in `databricks/modeling_utils.py` centralize prospective frame creation, split assignment, threshold application, and leakage rejection. The canonical feature contract lives in `shared/feature_contract.py`, and `scripts/check_no_leakage.py` validates the shared model feature order for target columns.
 
 ## Feature Engineering
 
@@ -361,7 +363,7 @@ def make_pdf() -> None:
                 "- Gold aggregates all sources into one row per beneficiary-year.",
                 "## Gold contract",
                 "- Primary key: bene_id + year.",
-                "- Feature version: gold_features_v2_utilization_chronic_structure.",
+                f"- Feature version: {FEATURE_VERSION}.",
                 "- Blocking failures: duplicate beneficiary-year keys, missing keys, empty row count, invalid enrollment months, invalid chronic-condition counts, and negative component costs.",
                 "## EDA confirmation",
                 "- Gold rows: 343,644.",

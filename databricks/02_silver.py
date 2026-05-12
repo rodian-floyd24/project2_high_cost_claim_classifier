@@ -85,6 +85,16 @@ def parse_double(column_name: str) -> Column:
     return nullify_blank(column_name).cast("double")
 
 
+def nonnegative_int(column_name: str) -> Column:
+    value = parse_int(column_name)
+    return F.when(value.isNull(), None).otherwise(F.greatest(value, F.lit(0)))
+
+
+def nonnegative_double(column_name: str) -> Column:
+    value = parse_double(column_name)
+    return F.when(value.isNull(), None).otherwise(F.greatest(value, F.lit(0.0)))
+
+
 def yes_no_flag(column_name: str) -> Column:
     value = F.upper(nullify_blank(column_name))
     return (
@@ -117,7 +127,7 @@ def sum_columns(columns: list[str]) -> Column:
     # Missing line amounts do not contribute to claim totals; malformed values are audited separately.
     total = F.lit(0.0)
     for column_name in columns:
-        total = total + F.coalesce(parse_double(column_name), F.lit(0.0))
+        total = total + F.coalesce(nonnegative_double(column_name), F.lit(0.0))
     return total
 
 
@@ -256,13 +266,13 @@ def build_inpatient_claims(df: DataFrame, run_ts: Column) -> DataFrame:
         nullify_blank("PRVDR_NUM").alias("provider_id"),
         nullify_blank("CLM_DRG_CD").alias("drg_code"),
         nullify_blank("ADMTNG_ICD9_DGNS_CD").alias("admitting_diagnosis_code"),
-        parse_double("CLM_PMT_AMT").alias("payment_amount"),
-        parse_double("NCH_PRMRY_PYR_CLM_PD_AMT").alias("primary_payer_paid_amount"),
-        parse_double("CLM_PASS_THRU_PER_DIEM_AMT").alias("pass_through_per_diem_amount"),
-        parse_double("NCH_BENE_IP_DDCTBL_AMT").alias("beneficiary_deductible_amount"),
-        parse_double("NCH_BENE_PTA_COINSRNC_LBLTY_AM").alias("beneficiary_coinsurance_amount"),
-        parse_double("NCH_BENE_BLOOD_DDCTBL_LBLTY_AM").alias("beneficiary_blood_deductible_amount"),
-        parse_int("CLM_UTLZTN_DAY_CNT").alias("claim_days"),
+        nonnegative_double("CLM_PMT_AMT").alias("payment_amount"),
+        nonnegative_double("NCH_PRMRY_PYR_CLM_PD_AMT").alias("primary_payer_paid_amount"),
+        nonnegative_double("CLM_PASS_THRU_PER_DIEM_AMT").alias("pass_through_per_diem_amount"),
+        nonnegative_double("NCH_BENE_IP_DDCTBL_AMT").alias("beneficiary_deductible_amount"),
+        nonnegative_double("NCH_BENE_PTA_COINSRNC_LBLTY_AM").alias("beneficiary_coinsurance_amount"),
+        nonnegative_double("NCH_BENE_BLOOD_DDCTBL_LBLTY_AM").alias("beneficiary_blood_deductible_amount"),
+        nonnegative_int("CLM_UTLZTN_DAY_CNT").alias("claim_days"),
         F.year(parse_date("CLM_THRU_DT")).alias("year"),
         count_true(parse_failure_exprs).alias("_parse_failure_count"),
         F.col("_bronze_source_file").alias("_bronze_source_file"),
@@ -306,11 +316,11 @@ def build_outpatient_claims(df: DataFrame, run_ts: Column) -> DataFrame:
         F.exists(F.array(*hcpcs_values), lambda hcpcs_code: hcpcs_code.isin(*ed_hcpcs_codes)).alias(
             "emergency_department_claim_flag"
         ),
-        parse_double("CLM_PMT_AMT").alias("payment_amount"),
-        parse_double("NCH_PRMRY_PYR_CLM_PD_AMT").alias("primary_payer_paid_amount"),
-        parse_double("NCH_BENE_PTB_DDCTBL_AMT").alias("beneficiary_deductible_amount"),
-        parse_double("NCH_BENE_PTB_COINSRNC_AMT").alias("beneficiary_coinsurance_amount"),
-        parse_double("NCH_BENE_BLOOD_DDCTBL_LBLTY_AM").alias("beneficiary_blood_deductible_amount"),
+        nonnegative_double("CLM_PMT_AMT").alias("payment_amount"),
+        nonnegative_double("NCH_PRMRY_PYR_CLM_PD_AMT").alias("primary_payer_paid_amount"),
+        nonnegative_double("NCH_BENE_PTB_DDCTBL_AMT").alias("beneficiary_deductible_amount"),
+        nonnegative_double("NCH_BENE_PTB_COINSRNC_AMT").alias("beneficiary_coinsurance_amount"),
+        nonnegative_double("NCH_BENE_BLOOD_DDCTBL_LBLTY_AM").alias("beneficiary_blood_deductible_amount"),
         F.when(
             from_date.isNotNull() & thru_date.isNotNull(),
             F.datediff(thru_date, from_date) + F.lit(1),
@@ -378,10 +388,10 @@ def build_pde(df: DataFrame, run_ts: Column) -> DataFrame:
         nullify_blank("DESYNPUF_ID").alias("bene_id"),
         service_date.alias("drug_fill_date"),
         nullify_blank("PROD_SRVC_ID").alias("product_service_id"),
-        parse_double("QTY_DSPNSD_NUM").alias("quantity_dispensed"),
-        parse_int("DAYS_SUPLY_NUM").alias("days_supply"),
-        parse_double("PTNT_PAY_AMT").alias("patient_pay_amount"),
-        parse_double("TOT_RX_CST_AMT").alias("drug_cost"),
+        nonnegative_double("QTY_DSPNSD_NUM").alias("quantity_dispensed"),
+        nonnegative_int("DAYS_SUPLY_NUM").alias("days_supply"),
+        nonnegative_double("PTNT_PAY_AMT").alias("patient_pay_amount"),
+        nonnegative_double("TOT_RX_CST_AMT").alias("drug_cost"),
         F.year(service_date).alias("year"),
         count_true(parse_failure_exprs).alias("_parse_failure_count"),
         F.col("_bronze_source_file").alias("_bronze_source_file"),

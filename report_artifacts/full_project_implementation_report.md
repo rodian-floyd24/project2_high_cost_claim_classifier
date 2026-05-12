@@ -46,7 +46,7 @@ Features are measured in beneficiary-year t. The target is measured from annual 
 
 The final comparison split is the locked v2 beneficiary-hash holdout: `xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout`. Hash buckets `<15` define test, buckets `15-29` define validation, and buckets `>=30` define train.
 
-Shared utilities in `databricks/modeling_utils.py` centralize prospective frame creation, split assignment, threshold application, and leakage rejection. `scripts/check_no_leakage.py` statically checks training feature lists for target columns.
+Shared utilities in `databricks/modeling_utils.py` centralize prospective frame creation, split assignment, threshold application, and leakage rejection. The canonical feature contract lives in `shared/feature_contract.py`, and `scripts/check_no_leakage.py` validates the shared model feature order for target columns.
 
 ## Feature Engineering
 

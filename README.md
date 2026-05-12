@@ -56,6 +56,12 @@ Canonical split contract:
 - `validation`: beneficiary hash bucket `15` through `29`
 - `train`: beneficiary hash bucket `>= 30`
 
+Canonical feature contract:
+- Source file: `shared/feature_contract.py`
+- `feature_version`: `gold_features_v2_utilization_chronic_structure`
+- Shared constants: `RAW_INPUT_FIELDS`, `MODEL_NUMERIC_FEATURES`, `MODEL_CATEGORICAL_FEATURES`, and `MODEL_FEATURE_ORDER`
+- Training, serving, validation, and reporting code imports these constants instead of maintaining independent model feature lists.
+
 The final supervised comparison includes four model families:
 - logistic regression
 - random forest
@@ -201,6 +207,8 @@ PROJECT2_API_URL="https://your-api-url" python3 test_project.py
 This project uses a prospective target definition. Features are measured in beneficiary-year `t`, while the high-cost label is computed from annual claim cost in year `t + 1`. The high-cost threshold is computed from the training split only to avoid leakage.
 
 The final train/validation/test split is the v2 beneficiary-hash holdout: `xxhash64_bene_id_mod_100_v2_beneficiary_hash_holdout`. It is intentionally beneficiary-level, so the same beneficiary cannot appear in multiple official comparison splits.
+
+The model feature set is centralized in `shared/feature_contract.py`. Training notebooks, local training, leakage checks, gold consistency checks, reporting generation, and FastAPI serving all import the same feature-version and feature-order constants to reduce training-serving skew.
 
 The modeling grain is one row per beneficiary-year, keyed by `bene_id` and `year`. Duplicate beneficiary-year rows are treated as blocking data-quality failures.
 

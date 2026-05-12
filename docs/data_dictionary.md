@@ -6,6 +6,8 @@ Primary key: `bene_id`, `year`.
 
 Feature version: `gold_features_v2_utilization_chronic_structure`.
 
+Canonical feature contract: `shared/feature_contract.py`.
+
 | Column | Description |
 |---|---|
 | bene_id | Synthetic beneficiary identifier. |
