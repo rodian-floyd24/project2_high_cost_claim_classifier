@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: project2-high-cost-claim-classifier-api
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: CORS_ALLOW_ORIGINS
+        value: https://rayodian-ncf.com,https://www.rayodian-ncf.com
+      - key: CORS_ALLOW_ORIGIN_REGEX
+        value: https://.*\.pages\.dev
+

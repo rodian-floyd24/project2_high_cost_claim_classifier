@@ -4,12 +4,13 @@ Project 2 for Distributed Systems for Data Science.
 
 ## Live Application URL
 
-- Live Streamlit/API deployment: https://rayodian-ncf.com
-- Health check: https://rayodian-ncf.com/health
+- Live frontend deployment: https://rayodian-ncf.com
+- API deployment target: https://project2-high-cost-claim-classifier-api.onrender.com
+- Health check: https://project2-high-cost-claim-classifier-api.onrender.com/health
 - Grading smoke test:
 
 ```bash
-PROJECT2_API_URL="https://rayodian-ncf.com" python3 test_project.py
+PROJECT2_API_URL="https://project2-high-cost-claim-classifier-api.onrender.com" python3 test_project.py
 ```
 
 ## Project Framing
@@ -108,16 +109,16 @@ The backend exposes:
 - `GET /metadata`: supervised-model metadata plus RL-policy metadata
 - `GET /health`: artifact-load health check
 
-## Live AWS Deployment
+## Live Deployment
 
-- Streamlit app: https://rayodian-ncf.com
-- Prediction API: https://rayodian-ncf.com
-- Health check: https://rayodian-ncf.com/health
+- Frontend app: https://rayodian-ncf.com
+- Prediction API: https://project2-high-cost-claim-classifier-api.onrender.com
+- Health check: https://project2-high-cost-claim-classifier-api.onrender.com/health
 
 Grading smoke test:
 
 ```bash
-PROJECT2_API_URL="https://rayodian-ncf.com" python3 test_project.py
+PROJECT2_API_URL="https://project2-high-cost-claim-classifier-api.onrender.com" python3 test_project.py
 ```
 
 ## App Output

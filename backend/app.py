@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sys
 import types
 from functools import lru_cache
@@ -11,6 +12,7 @@ import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 from shared.feature_contract import (
     FEATURE_CONTRACT_VERSION,
@@ -721,6 +723,33 @@ app = FastAPI(
         "Serves next-year Medicare high-cost risk predictions from the gradient-boosting model "
         "and simulated MDP/Q-learning intervention recommendations."
     ),
+)
+
+cors_allow_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ALLOW_ORIGINS",
+        ",".join(
+            [
+                "https://rayodian-ncf.com",
+                "https://www.rayodian-ncf.com",
+                "https://project2_high_cost_claim_classifier.pages.dev",
+                "https://project2-high-cost-claim-classifier.pages.dev",
+                "http://localhost:8501",
+                "http://127.0.0.1:8501",
+            ]
+        ),
+    ).split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_allow_origins,
+    allow_origin_regex=os.environ.get("CORS_ALLOW_ORIGIN_REGEX", r"https://.*\.pages\.dev"),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 
