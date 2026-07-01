@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ray Odian | High-Cost Claim Classifier</title>
+    <meta name="description" content="Project 2 healthcare risk scoring portfolio app with API-backed prediction and decision support.">
+    <link rel="preconnect" href="https://cdn.plot.ly">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="site-header">
+        <nav class="top-nav" aria-label="Primary navigation">
+            <a class="brand" href="#top">Ray Odian</a>
+            <div class="nav-links">
+                <a href="#projects">Projects</a>
+                <a href="#model">Model</a>
+                <a href="#scorer">Risk Scorer</a>
+                <a href="#stack">Stack</a>
+            </div>
+        </nav>
+
+        <section class="hero" id="top">
+            <p class="eyebrow">Data Science | Machine Learning | Actuarial Analytics</p>
+            <h1>High-Cost Claim Classifier</h1>
+            <p class="subtitle">
+                A deployed healthcare risk application that uses distributed data engineering,
+                statistically defensible model selection, and calibrated decision support to
+                identify beneficiaries likely to become high-cost next year.
+            </p>
+            <div class="button-row">
+                <a class="primary-btn" href="#scorer">Use the Risk Scorer</a>
+                <a class="secondary-btn" href="https://rayodian-ncf.com/health" target="_blank" rel="noreferrer">Check API Health</a>
+            </div>
+        </section>
+    </header>
+
+    <main>
+        <section class="metrics" aria-label="Model metrics" id="model-metrics"></section>
+
+        <section id="projects" class="page-section">
+            <h2>Selected Projects</h2>
+            <p>
+                This portfolio page centers the deployed Project 2 application while making the broader
+                engineering story visible: model development, cloud pipeline design, and operational serving.
+            </p>
+            <div class="project-grid">
+                <article class="project-card">
+                    <p class="card-kicker">Predictive Modeling</p>
+                    <h3>High-Cost Claim Classifier</h3>
+                    <p>Prospective healthcare risk model using medallion data engineering, calibrated scoring, lift curves, and top-k capture diagnostics.</p>
+                </article>
+                <article class="project-card">
+                    <p class="card-kicker">Policy Prototype</p>
+                    <h3>RL Decision Support Layer</h3>
+                    <p>A simulated intervention-policy prototype that maps scored beneficiaries into discrete MDP states and compares long-run action values.</p>
+                </article>
+                <article class="project-card">
+                    <p class="card-kicker">Cloud Pipeline</p>
+                    <h3>Distributed ML Pipeline</h3>
+                    <p>Databricks bronze, silver, and gold layers feeding MLflow artifacts, FastAPI serving, and public deployment.</p>
+                </article>
+            </div>
+        </section>
+
+        <section id="model" class="page-section">
+            <h2>Model Approach</h2>
+            <p>
+                The modeling frame is prospective: year-t beneficiary features predict year-t+1 high-cost status.
+                Logistic regression is retained as an interpretable actuarial benchmark, while random forest,
+                gradient boosting, and XGBoost are evaluated using PR-AUC, top-k capture, lift, calibration,
+                and Brier score rather than raw accuracy alone.
+            </p>
+        </section>
+
+        <section id="stack" class="page-section">
+            <h2>Technical Stack</h2>
+            <p>
+                The application combines a Databricks medallion pipeline, model artifacts served through FastAPI,
+                and a public static interface deployed through Cloudflare Pages.
+            </p>
+            <div class="stack-list" aria-label="Technology stack">
+                <span>Databricks</span>
+                <span>scikit-learn</span>
+                <span>XGBoost</span>
+                <span>FastAPI</span>
+                <span>Cloudflare Pages</span>
+            </div>
+        </section>
+
+        <section id="scorer" class="scorer-section">
+            <div class="section-title">
+                <h2>Live Risk Scorer</h2>
+                <p>Enter current-year utilization and cost signals. The app estimates next-year high-cost risk and returns a simulated policy recommendation.</p>
+            </div>
+
+            <div class="scorer-layout">
+                <form id="risk-form" class="scorer-form">
+                    <label class="field field-full">
+                        <span>Scenario preset</span>
+                        <select id="preset"></select>
+                    </label>
+
+                    <fieldset>
+                        <legend>Demographics</legend>
+                        <label class="field">
+                            <span>Age band</span>
+                            <select id="age_band" name="age_band"></select>
+                        </label>
+                        <label class="field">
+                            <span>Sex</span>
+                            <select id="sex" name="sex"></select>
+                        </label>
+                        <label class="field">
+                            <span>Race code</span>
+                            <select id="race_code" name="race_code"></select>
+                        </label>
+                        <label class="field">
+                            <span>State code</span>
+                            <select id="state_code" name="state_code"></select>
+                        </label>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Enrollment and Conditions</legend>
+                        <label class="field">
+                            <span>Enrollment months</span>
+                            <input id="enrollment_months_count" name="enrollment_months_count" type="number" min="0" max="12" step="1">
+                        </label>
+                        <label class="field">
+                            <span>Chronic condition count</span>
+                            <input id="chronic_condition_count" name="chronic_condition_count" type="number" min="0" max="11" step="1">
+                        </label>
+                        <label class="field">
+                            <span>Unique providers</span>
+                            <input id="unique_provider_count" name="unique_provider_count" type="number" min="0" max="25" step="1">
+                        </label>
+                        <label class="field">
+                            <span>Total claim days</span>
+                            <input id="total_claim_days" name="total_claim_days" type="number" min="0" max="60" step="1">
+                        </label>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Utilization</legend>
+                        <label class="field">
+                            <span>Inpatient claims</span>
+                            <input id="inpatient_claim_count" name="inpatient_claim_count" type="number" min="0" max="8" step="1">
+                        </label>
+                        <label class="field">
+                            <span>Outpatient claims</span>
+                            <input id="outpatient_claim_count" name="outpatient_claim_count" type="number" min="0" max="30" step="1">
+                        </label>
+                        <label class="field">
+                            <span>Carrier claims</span>
+                            <input id="carrier_claim_count" name="carrier_claim_count" type="number" min="0" max="40" step="1">
+                        </label>
+                        <label class="field">
+                            <span>Prescription events</span>
+                            <input id="pde_claim_count" name="pde_claim_count" type="number" min="0" max="40" step="1">
+                        </label>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Costs and Intervention</legend>
+                        <label class="field">
+                            <span>Inpatient cost ($)</span>
+                            <input id="inpatient_total_cost" name="inpatient_total_cost" type="number" min="0" step="100">
+                        </label>
+                        <label class="field">
+                            <span>Outpatient cost ($)</span>
+                            <input id="outpatient_total_cost" name="outpatient_total_cost" type="number" min="0" step="100">
+                        </label>
+                        <label class="field">
+                            <span>Carrier cost ($)</span>
+                            <input id="carrier_total_cost" name="carrier_total_cost" type="number" min="0" step="100">
+                        </label>
+                        <label class="field">
+                            <span>Prescription cost ($)</span>
+                            <input id="rx_total_cost" name="rx_total_cost" type="number" min="0" step="100">
+                        </label>
+                        <label class="field field-full">
+                            <span>Prior intervention status</span>
+                            <select id="prior_intervention_status" name="prior_intervention_status"></select>
+                        </label>
+                    </fieldset>
+
+                    <button class="score-btn" type="submit">Score Beneficiary</button>
+                </form>
+
+                <section class="results-panel" aria-live="polite">
+                    <div class="result-heading">
+                        <h2>Decision-Support Output</h2>
+                        <p>The risk engine is empirically trained on observed data. The intervention policy layer is a simulated decision prototype.</p>
+                    </div>
+                    <div id="status-message" class="status-message">Run a beneficiary profile to generate predictions.</div>
+                    <div id="results" hidden></div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        2026 Ray Odian | Data Science Portfolio | High-cost claim prediction with FastAPI, Databricks, and Cloudflare Pages
+    </footer>
+
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
