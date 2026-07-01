@@ -5,12 +5,12 @@ Project 2 for Distributed Systems for Data Science.
 ## Live Application URL
 
 - Live frontend deployment: https://rayodian-ncf.com
-- API deployment target: https://project2-high-cost-claim-classifier-api.onrender.com
-- Health check: https://project2-high-cost-claim-classifier-api.onrender.com/health
+- AWS API Gateway backend: https://t8youvvy3f.execute-api.us-east-1.amazonaws.com
+- Health check: https://t8youvvy3f.execute-api.us-east-1.amazonaws.com/health
 - Grading smoke test:
 
 ```bash
-PROJECT2_API_URL="https://project2-high-cost-claim-classifier-api.onrender.com" python3 test_project.py
+PROJECT2_API_URL="https://t8youvvy3f.execute-api.us-east-1.amazonaws.com" python3 test_project.py
 ```
 
 ## Project Framing
@@ -112,13 +112,13 @@ The backend exposes:
 ## Live Deployment
 
 - Frontend app: https://rayodian-ncf.com
-- Prediction API: https://project2-high-cost-claim-classifier-api.onrender.com
-- Health check: https://project2-high-cost-claim-classifier-api.onrender.com/health
+- Prediction API: https://t8youvvy3f.execute-api.us-east-1.amazonaws.com
+- Health check: https://t8youvvy3f.execute-api.us-east-1.amazonaws.com/health
 
 Grading smoke test:
 
 ```bash
-PROJECT2_API_URL="https://project2-high-cost-claim-classifier-api.onrender.com" python3 test_project.py
+PROJECT2_API_URL="https://t8youvvy3f.execute-api.us-east-1.amazonaws.com" python3 test_project.py
 ```
 
 ## App Output

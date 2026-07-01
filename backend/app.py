@@ -665,6 +665,9 @@ def install_sklearn_compat_shim() -> None:
             negative = 1.0 - positive
             return np.column_stack([negative, positive])
 
+        def _raw_prediction_to_proba(self, raw_predictions):
+            return self.predict_proba(raw_predictions)
+
         def get_init_raw_predictions(self, X, estimator):
             probas = estimator.predict_proba(X)
             return self.link.link(probas[:, 1]).reshape(-1, 1)
@@ -678,6 +681,9 @@ def install_sklearn_compat_shim() -> None:
             scores = scores - np.max(scores, axis=1, keepdims=True)
             exp_scores = np.exp(scores)
             return exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
+
+        def _raw_prediction_to_proba(self, raw_predictions):
+            return self.predict_proba(raw_predictions)
 
     class LeastSquaresError(_BaseLoss):
         pass
