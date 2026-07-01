@@ -107,6 +107,7 @@ const NUMBER_FIELDS = [
 const formatPercent = (value) => `${(Number(value || 0) * 100).toFixed(1)}%`;
 const formatMoney = (value) => `$${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const displayTier = (tier) => String(tier || "").replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 function fillSelect(id, values, formatter = (value) => value) {
     const select = document.getElementById(id);
@@ -223,7 +224,175 @@ async function fetchDecisionSupport(payload) {
         }
     }
 
+    if (!output.result) {
+        return estimateDecisionSupport(payload, errors);
+    }
+
     return output;
+}
+
+function estimateDecisionSupport(payload, apiErrors) {
+    const annualCost = payload.inpatient_total_cost
+        + payload.outpatient_total_cost
+        + payload.carrier_total_cost
+        + payload.rx_total_cost;
+    const totalClaims = payload.inpatient_claim_count
+        + payload.outpatient_claim_count
+        + payload.carrier_claim_count
+        + payload.pde_claim_count;
+    const ageLift = {
+        under_65: -0.1,
+        "65_74": 0.15,
+        "75_84": 0.35,
+        "85_plus": 0.55,
+        unknown: 0,
+    }[payload.age_band] || 0;
+    const interventionOffset = {
+        none: 0,
+        recent_low_touch: -0.12,
+        recent_intensive: -0.32,
+    }[payload.prior_intervention_status] || 0;
+
+    const linearScore = -4.2
+        + payload.chronic_condition_count * 0.23
+        + payload.inpatient_claim_count * 0.42
+        + payload.outpatient_claim_count * 0.035
+        + payload.carrier_claim_count * 0.018
+        + payload.pde_claim_count * 0.012
+        + payload.total_claim_days * 0.016
+        + payload.unique_provider_count * 0.025
+        + Math.log1p(annualCost) * 0.22
+        + ageLift
+        + interventionOffset;
+    const probability = clamp(1 / (1 + Math.exp(-linearScore)), 0.015, 0.94);
+    const riskTier = probability >= 0.75
+        ? "very_high"
+        : probability >= 0.45
+            ? "high"
+            : probability >= 0.22
+                ? "moderate"
+                : "low";
+    const chronicBurden = payload.chronic_condition_count >= 6
+        ? "high"
+        : payload.chronic_condition_count >= 3
+            ? "moderate"
+            : "low";
+    const utilizationIntensity = totalClaims >= 45 || payload.total_claim_days >= 25
+        ? "high"
+        : totalClaims >= 18 || payload.total_claim_days >= 10
+            ? "moderate"
+            : "low";
+    const stateId = `${riskTier}_${chronicBurden}_${utilizationIntensity}_${payload.prior_intervention_status}`;
+
+    const reasons = [
+        payload.chronic_condition_count >= 5 ? `Chronic condition count is elevated at ${payload.chronic_condition_count}.` : null,
+        payload.inpatient_claim_count > 0 ? `${payload.inpatient_claim_count} inpatient claim(s) materially increase expected risk.` : null,
+        annualCost >= 10000 ? `Current-year claim cost proxy is high at ${formatMoney(annualCost)}.` : null,
+        payload.total_claim_days >= 14 ? `Total claim days show sustained utilization at ${payload.total_claim_days} days.` : null,
+        payload.unique_provider_count >= 10 ? `Provider fragmentation is elevated across ${payload.unique_provider_count} providers.` : null,
+    ].filter(Boolean);
+    if (!reasons.length) {
+        reasons.push("Low utilization and modest current-year costs keep estimated risk comparatively low.");
+    }
+
+    const recommendedAction = riskTier === "very_high" || riskTier === "high"
+        ? "intensive"
+        : riskTier === "moderate"
+            ? "low_touch"
+            : "none";
+    const actionDefinitions = [
+        { action: "none", action_label: "No new intervention", riskDelta: 0, costPenalty: 0 },
+        { action: "low_touch", action_label: "Low-touch outreach", riskDelta: -0.055, costPenalty: 0.6 },
+        { action: "intensive", action_label: "Intensive care management", riskDelta: -0.14, costPenalty: 1.3 },
+    ];
+    const comparisons = actionDefinitions.map((action) => {
+        const expectedNextRisk = clamp(probability + action.riskDelta, 0.01, 0.95);
+        const policyFitBonus = action.action === recommendedAction ? 2 : 0;
+        const qValue = (1 - expectedNextRisk) * 5 - action.costPenalty + policyFitBonus;
+        return {
+            action: action.action,
+            action_label: action.action_label,
+            expected_next_risk_probability: expectedNextRisk,
+            expected_risk_delta: expectedNextRisk - probability,
+            expected_immediate_reward: (probability - expectedNextRisk) * 10 - action.costPenalty,
+            q_value: qValue,
+            is_recommended: false,
+        };
+    });
+    comparisons.sort((a, b) => b.q_value - a.q_value);
+    comparisons[0].is_recommended = true;
+    const recommended = comparisons[0];
+
+    return {
+        result: {
+            prediction: {
+                calibrated_probability: probability,
+                raw_model_probability: probability,
+                risk_score_0_100: Math.round(probability * 100),
+                risk_tier: riskTier,
+                decision_threshold: 0.42,
+                intervention_flag: probability >= 0.42,
+            },
+            metadata: {
+                model_name: "browser_demo_estimator",
+                feature_contract_version: "static-fallback-v1",
+                calibration_method: "heuristic client-side fallback",
+            },
+            reason_codes: reasons,
+            annual_claim_cost_proxy: annualCost,
+            cost_mix: {
+                inpatient: payload.inpatient_total_cost,
+                outpatient: payload.outpatient_total_cost,
+                carrier: payload.carrier_total_cost,
+                prescription: payload.rx_total_cost,
+            },
+            engineered_features: {
+                age_band: payload.age_band,
+                chronic_condition_count: payload.chronic_condition_count,
+                total_claim_count: totalClaims,
+                total_claim_days: payload.total_claim_days,
+                unique_provider_count: payload.unique_provider_count,
+                annual_claim_cost_proxy: annualCost,
+                prior_intervention_status: payload.prior_intervention_status,
+                api_fallback_reason: apiErrors[0] || "Live API unavailable",
+            },
+        },
+        stateResponse: {
+            current_state: {
+                state_id: stateId,
+                label: `${displayTier(riskTier)} risk | ${displayTier(chronicBurden)} chronic burden | ${displayTier(utilizationIntensity)} utilization`,
+                prior_intervention_status: payload.prior_intervention_status,
+                risk_tier: riskTier,
+                chronic_burden: chronicBurden,
+                utilization_intensity: utilizationIntensity,
+                baseline_risk_probability: probability,
+            },
+        },
+        recommendation: {
+            current_state: {
+                state_id: stateId,
+                label: `${displayTier(riskTier)} risk | ${displayTier(chronicBurden)} chronic burden | ${displayTier(utilizationIntensity)} utilization`,
+                prior_intervention_status: payload.prior_intervention_status,
+                risk_tier: riskTier,
+                chronic_burden: chronicBurden,
+                utilization_intensity: utilizationIntensity,
+                baseline_risk_probability: probability,
+            },
+            recommended_action: recommended.action,
+            recommended_action_display: recommended.action_label,
+            expected_long_run_value: recommended.q_value,
+            policy_explanation: "Live API scoring is unavailable, so this browser-side estimate uses the same inputs to keep the demo interactive. Treat this as a portfolio demonstration, not a deployed clinical or actuarial decision.",
+            action_values: comparisons.map((item) => ({
+                action: item.action,
+                action_label: item.action_label,
+                q_value: item.q_value,
+            })),
+        },
+        simulation: {
+            comparisons,
+        },
+        errors: ["Live prediction API unavailable; showing a browser-only demo estimate."],
+    };
 }
 
 function renderWarnings(errors) {
@@ -309,6 +478,16 @@ function renderDiagnostics(result) {
 }
 
 function drawCharts(result, recommendation) {
+    if (!window.Plotly) {
+        document.getElementById("risk-gauge").innerHTML = "<p>Chart library unavailable.</p>";
+        document.getElementById("cost-chart").innerHTML = "<p>Chart library unavailable.</p>";
+        const qElement = document.getElementById("q-chart");
+        if (qElement) {
+            qElement.innerHTML = "<p>Chart library unavailable.</p>";
+        }
+        return;
+    }
+
     const metrics = result.prediction;
     const probability = Number(metrics.calibrated_probability || 0);
     const threshold = Number(metrics.decision_threshold || 0);
